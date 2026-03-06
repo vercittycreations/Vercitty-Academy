@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── helpers ──────────────────────────────────────────────────
+    function isAuth()  { return request.auth != null; }
+    function uid()     { return request.auth.uid; }
+    function isAdmin() {
+      return isAuth() &&
+             get(/databases/$(database)/documents/users/$(uid())).data.role == 'admin';
+    }
+    function isSelf(userId) { return isAuth() && uid() == userId; }
+
+    // ── users ─────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:   if isAuth() && (isSelf(userId) || isAdmin());
+      allow create: if isAuth();
+      allow update: if isAdmin() || isSelf(userId);
+      allow delete: if isAdmin();
+    }
+
+    // ── courses ───────────────────────────────────────────────────
+    match /courses/{courseId} {
+      allow read: if isAuth() && (
+        isAdmin() ||
+        exists(/databases/$(database)/documents/userCourses/$(uid() + '_' + courseId)) ||
+        query_has_user()
+      );
+      allow write: if isAdmin();
+
+      function query_has_user() {
+        return isAuth();  // secondary check done client-side via userCourses
+      }
+    }
+
+    // ── lessons ───────────────────────────────────────────────────
+    match /lessons/{lessonId} {
+      allow read:  if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── userCourses ───────────────────────────────────────────────
+    match /userCourses/{docId} {
+      allow read:   if isAuth() && (
+        isAdmin() ||
+        resource.data.userId == uid()
+      );
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+      allow update: if isAdmin();
+    }
+
+    // ── progress ──────────────────────────────────────────────────
+    match /progress/{docId} {
+      allow read:   if isAuth() && (
+        isAdmin() || resource.data.userId == uid()
+      );
+      allow create: if isAuth() && request.resource.data.userId == uid();
+      allow update: if isAuth() && resource.data.userId == uid();
+      allow delete: if isAdmin();
+    }
+  }
+}
