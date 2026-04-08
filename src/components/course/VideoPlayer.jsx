@@ -17,7 +17,10 @@ export default function VideoPlayer({ youtubeUrl, title }) {
 
   return (
     <div className="w-full">
-      <div className="relative w-full aspect-video bg-dark-950 rounded-xl overflow-hidden border border-dark-800 shadow-2xl shadow-black/60">
+      <div
+        className="relative w-full aspect-video bg-dark-950 rounded-xl overflow-hidden border border-dark-800 shadow-2xl shadow-black/60"
+        onContextMenu={e => e.preventDefault()}
+      >
         <iframe
           key={embedUrl}
           src={embedUrl}
@@ -25,7 +28,13 @@ export default function VideoPlayer({ youtubeUrl, title }) {
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           className="absolute inset-0 w-full h-full"
-          style={{ border: 'none' }}
+          style={{ border: 'none', pointerEvents: 'auto' }}
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+        />
+        {/* Transparent overlay to block right-click on iframe edges */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ zIndex: 1 }}
         />
       </div>
     </div>

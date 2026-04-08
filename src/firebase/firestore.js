@@ -1,7 +1,7 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc,
   updateDoc, deleteDoc, query, where, orderBy,
-  onSnapshot, serverTimestamp, writeBatch,
+  onSnapshot, serverTimestamp,
 } from 'firebase/firestore'
 import { db } from './config'
 
@@ -146,4 +146,49 @@ export const subscribeToProgress = (userId, courseId, callback) => {
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => d.data().lessonId))
   })
+}
+
+// ─── BOOKMARKS ────────────────────────────────────────────────────────────────
+export const toggleBookmark = async (userId, lessonId, courseId) => {
+  const ref = doc(db, 'bookmarks', `${userId}_${lessonId}`)
+  const snap = await getDoc(ref)
+  if (snap.exists()) {
+    await deleteDoc(ref)
+    return false
+  } else {
+    await setDoc(ref, { userId, lessonId, courseId, savedAt: serverTimestamp() })
+    return true
+  }
+}
+
+export const subscribeToBookmarks = (userId, courseId, callback) => {
+  const q = query(
+    collection(db, 'bookmarks'),
+    where('userId', '==', userId),
+    where('courseId', '==', courseId)
+  )
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => d.data().lessonId))
+  })
+}
+
+// ─── NOTES ────────────────────────────────────────────────────────────────────
+export const saveNote = (userId, lessonId, text) =>
+  setDoc(doc(db, 'notes', `${userId}_${lessonId}`), {
+    userId, lessonId, text, updatedAt: serverTimestamp()
+  })
+
+export const getNote = async (userId, lessonId) => {
+  const snap = await getDoc(doc(db, 'notes', `${userId}_${lessonId}`))
+  return snap.exists() ? snap.data().text : ''
+}
+// ─── LAST LESSON (RESUME) ─────────────────────────────────────────────────────
+export const saveLastLesson = (userId, courseId, lessonId) =>
+  setDoc(doc(db, 'lastLesson', `${userId}_${courseId}`), {
+    userId, courseId, lessonId, updatedAt: serverTimestamp()
+  })
+
+export const getLastLesson = async (userId, courseId) => {
+  const snap = await getDoc(doc(db, 'lastLesson', `${userId}_${courseId}`))
+  return snap.exists() ? snap.data().lessonId : null
 }

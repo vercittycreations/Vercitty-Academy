@@ -1,6 +1,8 @@
-import { CheckCircle, Circle, PlayCircle, FileText, Lock } from 'lucide-react'
+import { CheckCircle, PlayCircle, FileText, Bookmark } from 'lucide-react'
 
-export default function LessonItem({ lesson, index, isActive, isCompleted, onClick }) {
+export default function LessonItem({
+  lesson, index, isActive, isCompleted, isBookmarked = false, onClick
+}) {
   return (
     <button
       onClick={onClick}
@@ -11,7 +13,6 @@ export default function LessonItem({ lesson, index, isActive, isCompleted, onCli
                     : 'hover:bg-dark-800 border border-transparent'
                   }`}
     >
-      {/* Index / Status icon */}
       <div className="shrink-0 mt-0.5">
         {isCompleted ? (
           <CheckCircle size={18} className="text-emerald-400" />
@@ -27,16 +28,13 @@ export default function LessonItem({ lesson, index, isActive, isCompleted, onCli
         )}
       </div>
 
-      {/* Text */}
       <div className="flex-1 min-w-0">
         <p className={`text-sm font-body leading-snug truncate
                        ${isActive ? 'text-white font-500' : 'text-dark-300 group-hover:text-dark-100'}`}>
           {lesson.title}
         </p>
         {lesson.description && (
-          <p className="text-xs text-dark-500 mt-0.5 line-clamp-1">
-            {lesson.description}
-          </p>
+          <p className="text-xs text-dark-500 mt-0.5 line-clamp-1">{lesson.description}</p>
         )}
         <div className="flex items-center gap-2 mt-1">
           {lesson.youtubeUrl && (
@@ -52,7 +50,10 @@ export default function LessonItem({ lesson, index, isActive, isCompleted, onCli
         </div>
       </div>
 
-      {/* Active indicator bar */}
+      {isBookmarked && (
+        <Bookmark size={13} className="text-amber-400 fill-amber-400 shrink-0 mt-0.5" />
+      )}
+
       {isActive && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-brand-500 rounded-r-full" />
       )}

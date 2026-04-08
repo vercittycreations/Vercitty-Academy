@@ -8,12 +8,12 @@ export function extractYouTubeId(url) {
     const match = url.match(pattern)
     if (match) return match[1]
   }
-  return url // assume it's already an ID
+  return url
 }
 
 export function getEmbedUrl(url) {
   const id = extractYouTubeId(url)
-  return id
-    ? `https://www.youtube.com/embed/${id}?rel=0&modestbranding=1&controls=1`
-    : null
+  if (!id) return null
+  // disabledownload=1 hides download button on embed
+  return `https://www.youtube.com/embed/${id}?rel=0&modestbranding=1&controls=1&disablekb=0&fs=1&iv_load_policy=3&disabledownload=1`
 }

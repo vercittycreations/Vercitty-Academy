@@ -85,7 +85,7 @@ export default function AdminDashboard() {
           <Activity size={14} className="text-brand-400" />
           <span className="text-xs font-display text-brand-400 uppercase tracking-widest">Admin Panel</span>
         </div>
-        <h1 className="page-title">Academy Overview</h1>
+        <h1 className="page-title">EduCrek Overview</h1>
         <p className="text-dark-400 text-sm mt-1">
           Manage users, courses, and assignments from here.
         </p>

@@ -1,25 +1,15 @@
-import { BookOpen, TrendingUp, CheckCircle, Trophy } from 'lucide-react'
-import PageWrapper          from '../components/layout/PageWrapper'
-import CourseCard           from '../components/course/CourseCard'
-import CourseProgressCard   from '../components/progress/CourseProgressCard'
-import Spinner              from '../components/ui/Spinner'
-import EmptyState           from '../components/ui/EmptyState'
-import { useAuth }          from '../context/AuthContext'
-import { useUserCourses }   from '../hooks/useCourses'
-import { useProgress }      from '../hooks/useProgress'
-import { useLessons }       from '../hooks/useLessons'
-
-/* ── per-course stats aggregator ─────────────────────────── */
-function useDashboardStats(courses, userId) {
-  // We compute this client-side since CourseCard already
-  // fetches progress per course via useProgress hook.
-  // This hook just provides the shape; real % comes from cards.
-  return {
-    total:     courses.length,
-    started:   courses.length,   // all assigned = started after first login
-    completed: 0,                // updated live by CourseProgressCard
-  }
-}
+import { BookOpen, TrendingUp, CheckCircle } from 'lucide-react'
+import PageWrapper        from '../components/layout/PageWrapper'
+import CourseCard         from '../components/course/CourseCard'
+import CourseProgressCard from '../components/progress/CourseProgressCard'
+import EmptyState         from '../components/ui/EmptyState'
+import {
+  CourseCardSkeleton,
+  CourseProgressCardSkeleton,
+  StatCardSkeleton,
+} from '../components/ui/Skeleton'
+import { useAuth }        from '../context/AuthContext'
+import { useUserCourses } from '../hooks/useCourses'
 
 function StatCard({ icon: Icon, label, value, accent }) {
   const map = {
@@ -41,8 +31,8 @@ function StatCard({ icon: Icon, label, value, accent }) {
 }
 
 export default function Dashboard() {
-  const { user, profile }         = useAuth()
-  const { courses, loading }      = useUserCourses(user?.uid)
+  const { user, profile }    = useAuth()
+  const { courses, loading } = useUserCourses(user?.uid)
 
   const greeting = () => {
     const h = new Date().getHours()
@@ -53,11 +43,8 @@ export default function Dashboard() {
 
   return (
     <PageWrapper>
-      {/* Header */}
       <div className="mb-8">
-        <p className="text-dark-500 text-sm font-body mb-1">
-          {greeting()},
-        </p>
+        <p className="text-dark-500 text-sm font-body mb-1">{greeting()},</p>
         <h1 className="page-title text-3xl">
           {profile?.name?.split(' ')[0] || 'Learner'} 👋
         </h1>
@@ -67,13 +54,17 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      {!loading && courses.length > 0 && (
+      {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-          <StatCard icon={BookOpen}    label="Assigned Courses"  value={courses.length} accent="brand"   />
-          <StatCard icon={TrendingUp}  label="In Progress"       value={courses.length} accent="amber"   />
-          <StatCard icon={CheckCircle} label="Completed"         value="—"              accent="emerald" />
+          {[0,1,2].map(i => <StatCardSkeleton key={i} />)}
         </div>
-      )}
+      ) : courses.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+          <StatCard icon={BookOpen}    label="Assigned Courses" value={courses.length} accent="brand"   />
+          <StatCard icon={TrendingUp}  label="In Progress"      value={courses.length} accent="amber"   />
+          <StatCard icon={CheckCircle} label="Completed"        value="—"             accent="emerald" />
+        </div>
+      ) : null}
 
       {/* Course grid */}
       <div className="flex items-center gap-4 mb-6">
@@ -87,12 +78,14 @@ export default function Dashboard() {
       </div>
 
       {loading ? (
-        <Spinner text="Loading your courses..." />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+          {[0,1,2].map(i => <CourseCardSkeleton key={i} />)}
+        </div>
       ) : courses.length === 0 ? (
         <EmptyState
           icon={BookOpen}
           title="No courses assigned yet"
-          description="Your administrator hasn't assigned any courses to your account yet. Check back soon."
+          description="Your administrator hasn't assigned any courses yet. Check back soon."
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
@@ -102,7 +95,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Progress overview section */}
+      {/* Progress overview */}
       {!loading && courses.length > 0 && (
         <>
           <div className="flex items-center gap-4 mb-6">
