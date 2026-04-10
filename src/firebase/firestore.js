@@ -182,6 +182,7 @@ export const getNote = async (userId, lessonId) => {
   const snap = await getDoc(doc(db, 'notes', `${userId}_${lessonId}`))
   return snap.exists() ? snap.data().text : ''
 }
+
 // ─── LAST LESSON (RESUME) ─────────────────────────────────────────────────────
 export const saveLastLesson = (userId, courseId, lessonId) =>
   setDoc(doc(db, 'lastLesson', `${userId}_${courseId}`), {
@@ -191,4 +192,71 @@ export const saveLastLesson = (userId, courseId, lessonId) =>
 export const getLastLesson = async (userId, courseId) => {
   const snap = await getDoc(doc(db, 'lastLesson', `${userId}_${courseId}`))
   return snap.exists() ? snap.data().lessonId : null
+}
+
+// ─── QUESTION BANK ────────────────────────────────────────────────────────────
+// Each question: { question, options:[A,B,C,D], correctIndex, topic, difficulty }
+
+export const createBankQuestion = (data) =>
+  addDoc(collection(db, 'questionBank'), {
+    ...data,
+    createdAt: serverTimestamp(),
+  })
+
+export const getAllBankQuestions = async () => {
+  const snap = await getDocs(
+    query(collection(db, 'questionBank'), orderBy('createdAt', 'desc'))
+  )
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
+export const updateBankQuestion = (id, data) =>
+  updateDoc(doc(db, 'questionBank', id), data)
+
+export const deleteBankQuestion = (id) =>
+  deleteDoc(doc(db, 'questionBank', id))
+
+// ─── QUIZ (attached to lesson — picks from bank OR custom) ────────────────────
+// quizQuestions/{lessonId} → { lessonId, questionIds: [...] }
+// questionIds are IDs from questionBank collection
+
+export const setLessonQuiz = (lessonId, questionIds) =>
+  setDoc(doc(db, 'quizQuestions', lessonId), {
+    lessonId,
+    questionIds,
+    updatedAt: serverTimestamp(),
+  })
+
+export const getLessonQuizIds = async (lessonId) => {
+  const snap = await getDoc(doc(db, 'quizQuestions', lessonId))
+  return snap.exists() ? (snap.data().questionIds || []) : []
+}
+
+// Get full question objects for a lesson
+export const getLessonQuestions = async (lessonId) => {
+  const ids = await getLessonQuizIds(lessonId)
+  if (ids.length === 0) return []
+  const questions = await Promise.all(
+    ids.map(async id => {
+      const snap = await getDoc(doc(db, 'questionBank', id))
+      return snap.exists() ? { id: snap.id, ...snap.data() } : null
+    })
+  )
+  return questions.filter(Boolean)
+}
+
+export const deleteLessonQuiz = (lessonId) =>
+  deleteDoc(doc(db, 'quizQuestions', lessonId))
+
+// ─── QUIZ RESULTS ─────────────────────────────────────────────────────────────
+export const saveQuizResult = (userId, lessonId, data) =>
+  setDoc(
+    doc(db, 'quizResults', `${userId}_${lessonId}`),
+    { ...data, updatedAt: serverTimestamp() },
+    { merge: true }
+  )
+
+export const getQuizResult = async (userId, lessonId) => {
+  const snap = await getDoc(doc(db, 'quizResults', `${userId}_${lessonId}`))
+  return snap.exists() ? snap.data() : null
 }

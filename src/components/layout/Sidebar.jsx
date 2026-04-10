@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, BookOpen, Users,
   GraduationCap, UserCheck, LogOut,
-  Shield, Menu, X
+  Shield, Menu, X, HelpCircle, Download
 } from 'lucide-react'
 import { useAuth }    from '../../context/AuthContext'
 import { logoutUser } from '../../firebase/auth'
@@ -11,13 +11,15 @@ import { logoutUser } from '../../firebase/auth'
 const userLinks = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/dashboard', icon: BookOpen,        label: 'My Courses' },
+  { to: '/report',    icon: Download,        label: 'Progress Report' },
 ]
 
 const adminLinks = [
-  { to: '/admin',         icon: LayoutDashboard, label: 'Overview'       },
-  { to: '/admin/users',   icon: Users,           label: 'Users'          },
-  { to: '/admin/courses', icon: BookOpen,        label: 'Courses'        },
-  { to: '/admin/assign',  icon: UserCheck,       label: 'Assign Courses' },
+  { to: '/admin',            icon: LayoutDashboard, label: 'Overview'       },
+  { to: '/admin/users',      icon: Users,           label: 'Users'          },
+  { to: '/admin/courses',    icon: BookOpen,        label: 'Courses'        },
+  { to: '/admin/assign',     icon: UserCheck,       label: 'Assign Courses' },
+  { to: '/admin/questions',  icon: HelpCircle,      label: 'Question Bank'  },
 ]
 
 export default function Sidebar() {
