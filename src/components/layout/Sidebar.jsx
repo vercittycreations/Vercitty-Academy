@@ -1,25 +1,25 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, BookOpen, Users,
-  GraduationCap, UserCheck, LogOut,
-  Shield, Menu, X, HelpCircle, Download
+  LayoutDashboard, BookOpen, Users, GraduationCap,
+  UserCheck, LogOut, Shield, Menu, X,
+  HelpCircle, TrendingUp, Download
 } from 'lucide-react'
 import { useAuth }    from '../../context/AuthContext'
 import { logoutUser } from '../../firebase/auth'
 
-const userLinks = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/dashboard', icon: BookOpen,        label: 'My Courses' },
-  { to: '/report',    icon: Download,        label: 'Progress Report' },
+const adminLinks = [
+  { to: '/admin',            icon: LayoutDashboard, label: 'Overview'        },
+  { to: '/admin/users',      icon: Users,           label: 'Users'           },
+  { to: '/admin/courses',    icon: BookOpen,        label: 'Courses'         },
+  { to: '/admin/assign',     icon: UserCheck,       label: 'Assign Courses'  },
+  { to: '/admin/questions',  icon: HelpCircle,      label: 'Question Bank'   },
+  { to: '/admin/progress',   icon: TrendingUp,      label: 'Progress'        },
 ]
 
-const adminLinks = [
-  { to: '/admin',            icon: LayoutDashboard, label: 'Overview'       },
-  { to: '/admin/users',      icon: Users,           label: 'Users'          },
-  { to: '/admin/courses',    icon: BookOpen,        label: 'Courses'        },
-  { to: '/admin/assign',     icon: UserCheck,       label: 'Assign Courses' },
-  { to: '/admin/questions',  icon: HelpCircle,      label: 'Question Bank'  },
+const userLinks = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'       },
+  { to: '/report',    icon: Download,        label: 'Progress Report' },
 ]
 
 export default function Sidebar() {
@@ -46,7 +46,6 @@ export default function Sidebar() {
             <p className="text-brand-400 font-display text-xs">Academy</p>
           </div>
         </div>
-        {/* Close button — mobile only */}
         <button
           onClick={() => setMobileOpen(false)}
           className="lg:hidden text-dark-400 hover:text-white transition-colors"
@@ -108,12 +107,13 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 bg-dark-900 border-r border-dark-800 flex-col z-40">
+      {/* Desktop */}
+      <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 bg-dark-900
+                        border-r border-dark-800 flex-col z-40">
         <SidebarContent />
       </aside>
 
-      {/* Mobile hamburger button */}
+      {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-50 w-10 h-10 bg-dark-900 border border-dark-700

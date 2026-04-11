@@ -1,20 +1,27 @@
-import { CheckCircle, PlayCircle, FileText, Bookmark } from 'lucide-react'
+import { CheckCircle, PlayCircle, FileText, Bookmark, Lock } from 'lucide-react'
 
 export default function LessonItem({
-  lesson, index, isActive, isCompleted, isBookmarked = false, onClick
+  lesson, index, isActive, isCompleted, isBookmarked = false,
+  isLocked = false, onClick
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={isLocked}
       className={`w-full text-left flex items-start gap-3 px-4 py-3.5 rounded-lg
                   transition-all duration-200 group relative
-                  ${isActive
-                    ? 'bg-brand-600/15 border border-brand-600/30'
-                    : 'hover:bg-dark-800 border border-transparent'
+                  ${isLocked
+                    ? 'opacity-50 cursor-not-allowed border border-transparent'
+                    : isActive
+                      ? 'bg-brand-600/15 border border-brand-600/30 cursor-pointer'
+                      : 'hover:bg-dark-800 border border-transparent cursor-pointer'
                   }`}
     >
+      {/* Status icon */}
       <div className="shrink-0 mt-0.5">
-        {isCompleted ? (
+        {isLocked ? (
+          <Lock size={16} className="text-dark-600" />
+        ) : isCompleted ? (
           <CheckCircle size={18} className="text-emerald-400" />
         ) : isActive ? (
           <PlayCircle size={18} className="text-brand-400" />
@@ -28,33 +35,50 @@ export default function LessonItem({
         )}
       </div>
 
+      {/* Text */}
       <div className="flex-1 min-w-0">
         <p className={`text-sm font-body leading-snug truncate
-                       ${isActive ? 'text-white font-500' : 'text-dark-300 group-hover:text-dark-100'}`}>
+                       ${isLocked
+                         ? 'text-dark-600'
+                         : isActive
+                           ? 'text-white font-500'
+                           : 'text-dark-300 group-hover:text-dark-100'
+                       }`}>
           {lesson.title}
         </p>
-        {lesson.description && (
-          <p className="text-xs text-dark-500 mt-0.5 line-clamp-1">{lesson.description}</p>
+        {lesson.description && !isLocked && (
+          <p className="text-xs text-dark-500 mt-0.5 line-clamp-1">
+            {lesson.description}
+          </p>
         )}
-        <div className="flex items-center gap-2 mt-1">
-          {lesson.youtubeUrl && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-dark-500">
-              <PlayCircle size={9} /> Video
-            </span>
-          )}
-          {lesson.resourceLink && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-dark-500">
-              <FileText size={9} /> Resource
-            </span>
-          )}
-        </div>
+        {isLocked && (
+          <p className="text-[10px] text-dark-700 mt-0.5">
+            Complete previous lesson to unlock
+          </p>
+        )}
+        {!isLocked && (
+          <div className="flex items-center gap-2 mt-1">
+            {lesson.youtubeUrl && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-dark-500">
+                <PlayCircle size={9} /> Video
+              </span>
+            )}
+            {lesson.resourceLink && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-dark-500">
+                <FileText size={9} /> Resource
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {isBookmarked && (
+      {/* Bookmark icon */}
+      {isBookmarked && !isLocked && (
         <Bookmark size={13} className="text-amber-400 fill-amber-400 shrink-0 mt-0.5" />
       )}
 
-      {isActive && (
+      {/* Active indicator */}
+      {isActive && !isLocked && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-brand-500 rounded-r-full" />
       )}
     </button>

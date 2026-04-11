@@ -1,16 +1,17 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 
-import Login          from './pages/Login'
-import Dashboard      from './pages/Dashboard'
-import CoursePage     from './pages/CoursePage'
-import ProgressReport from './pages/ProgressReport'
-import AdminDashboard from './pages/admin/AdminDashboard'
-import ManageUsers    from './pages/admin/ManageUsers'
-import ManageCourses  from './pages/admin/ManageCourses'
-import ManageLessons  from './pages/admin/ManageLessons'
-import AssignCourses  from './pages/admin/AssignCourses'
-import QuestionBank   from './pages/admin/QuestionBank'
+import Login              from './pages/Login'
+import Dashboard          from './pages/Dashboard'
+import CoursePage         from './pages/CoursePage'
+import ProgressReport     from './pages/ProgressReport'
+import AdminDashboard     from './pages/admin/AdminDashboard'
+import ManageUsers        from './pages/admin/ManageUsers'
+import ManageCourses      from './pages/admin/ManageCourses'
+import ManageLessons      from './pages/admin/ManageLessons'
+import AssignCourses      from './pages/admin/AssignCourses'
+import QuestionBank       from './pages/admin/QuestionBank'
+import ProgressDashboard  from './pages/admin/ProgressDashboard'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -50,9 +51,9 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
 
-        <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+        <Route path="/dashboard"        element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/course/:courseId" element={<PrivateRoute><CoursePage /></PrivateRoute>} />
-        <Route path="/report" element={<PrivateRoute><ProgressReport /></PrivateRoute>} />
+        <Route path="/report"           element={<PrivateRoute><ProgressReport /></PrivateRoute>} />
 
         <Route path="/admin"                           element={<AdminRoute><AdminDashboard /></AdminRoute>} />
         <Route path="/admin/users"                     element={<AdminRoute><ManageUsers /></AdminRoute>} />
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="/admin/courses/:courseId/lessons" element={<AdminRoute><ManageLessons /></AdminRoute>} />
         <Route path="/admin/assign"                    element={<AdminRoute><AssignCourses /></AdminRoute>} />
         <Route path="/admin/questions"                 element={<AdminRoute><QuestionBank /></AdminRoute>} />
+        <Route path="/admin/progress"                  element={<AdminRoute><ProgressDashboard /></AdminRoute>} />
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

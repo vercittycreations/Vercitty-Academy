@@ -9,9 +9,10 @@ export function useUserCourses(userId) {
     if (!userId) return
     const fetch = async () => {
       setLoading(true)
-      const courseIds = await getCoursesForUser(userId)
+      const courseIds  = await getCoursesForUser(userId)
       const courseData = await Promise.all(courseIds.map(id => getCourse(id)))
-      setCourses(courseData.filter(Boolean))
+      // Students only see published courses (not draft)
+      setCourses(courseData.filter(Boolean).filter(c => c.status !== 'draft'))
       setLoading(false)
     }
     fetch()
@@ -25,6 +26,7 @@ export function useAllCourses() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Admin sees ALL courses including drafts
     getAllCourses().then(data => {
       setCourses(data)
       setLoading(false)

@@ -4,9 +4,9 @@ import { ListVideo, Search, Bookmark } from 'lucide-react'
 
 export default function LessonPlaylist({
   lessons, activeLesson, completedLessons,
-  bookmarkedLessons = [], onSelect
+  bookmarkedLessons = [], onSelect, onLockedClick
 }) {
-  const [query, setQuery]               = useState('')
+  const [query,         setQuery]         = useState('')
   const [showBookmarks, setShowBookmarks] = useState(false)
 
   if (!lessons || lessons.length === 0) {
@@ -20,7 +20,16 @@ export default function LessonPlaylist({
 
   const completedCount = completedLessons.length
   const totalCount     = lessons.length
-  const percent        = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
+  const percent        = totalCount > 0
+    ? Math.round((completedCount / totalCount) * 100)
+    : 0
+
+  // A lesson is locked if the previous lesson is not completed
+  const isLocked = (index) => {
+    if (index === 0) return false
+    const prevLesson = lessons[index - 1]
+    return !completedLessons.includes(prevLesson.id)
+  }
 
   const filtered = lessons.filter(l => {
     const matchSearch = l.title.toLowerCase().includes(query.toLowerCase())
@@ -30,12 +39,16 @@ export default function LessonPlaylist({
 
   return (
     <div className="flex flex-col h-full">
+      {/* Header */}
       <div className="px-4 py-4 border-b border-dark-800 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-display font-700 text-white">Lessons</h3>
-          <span className="text-xs text-dark-400 font-body">{completedCount}/{totalCount}</span>
+          <span className="text-xs text-dark-400 font-body">
+            {completedCount}/{totalCount}
+          </span>
         </div>
 
+        {/* Progress bar */}
         <div className="w-full h-1 bg-dark-800 rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full transition-all duration-700"
@@ -43,6 +56,7 @@ export default function LessonPlaylist({
           />
         </div>
 
+        {/* Search */}
         <div className="relative">
           <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500 pointer-events-none" />
           <input
@@ -56,6 +70,7 @@ export default function LessonPlaylist({
           />
         </div>
 
+        {/* Bookmark filter */}
         <button
           onClick={() => setShowBookmarks(b => !b)}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-display
@@ -75,6 +90,7 @@ export default function LessonPlaylist({
         </button>
       </div>
 
+      {/* Scrollable list */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center py-8 gap-2">
@@ -91,17 +107,22 @@ export default function LessonPlaylist({
             )}
           </div>
         ) : (
-          filtered.map((lesson) => (
-            <LessonItem
-              key={lesson.id}
-              lesson={lesson}
-              index={lessons.indexOf(lesson)}
-              isActive={activeLesson?.id === lesson.id}
-              isCompleted={completedLessons.includes(lesson.id)}
-              isBookmarked={bookmarkedLessons.includes(lesson.id)}
-              onClick={() => onSelect(lesson)}
-            />
-          ))
+          filtered.map((lesson) => {
+            const realIndex = lessons.indexOf(lesson)
+            const locked    = isLocked(realIndex)
+            return (
+              <LessonItem
+                key={lesson.id}
+                lesson={lesson}
+                index={realIndex}
+                isActive={activeLesson?.id === lesson.id}
+                isCompleted={completedLessons.includes(lesson.id)}
+                isBookmarked={bookmarkedLessons.includes(lesson.id)}
+                isLocked={locked}
+                onClick={() => locked ? onLockedClick?.() : onSelect(lesson)}
+              />
+            )
+          })
         )}
       </div>
     </div>

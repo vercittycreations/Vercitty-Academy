@@ -3,7 +3,8 @@ import { useParams, useNavigate }            from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, BookOpen,
   ChevronLeft, ChevronRight, Menu, X,
-  Layers, Trophy, Bookmark, FileText, HelpCircle
+  Layers, Trophy, Bookmark, FileText,
+  HelpCircle, Lock, Download
 } from 'lucide-react'
 import Sidebar          from '../components/layout/Sidebar'
 import VideoPlayer      from '../components/course/VideoPlayer'
@@ -23,6 +24,7 @@ import { useNotes }     from '../hooks/useNotes'
 import { useLastLesson } from '../hooks/useLastLesson'
 import { useQuiz }      from '../hooks/useQuiz'
 import { getCourse }    from '../firebase/firestore'
+import { downloadNotes } from '../utils/notes'
 
 export default function CoursePage() {
   const { courseId } = useParams()
@@ -36,9 +38,10 @@ export default function CoursePage() {
   const [marking,       setMarking]       = useState(false)
   const [showQuiz,      setShowQuiz]      = useState(false)
   const [showNotes,     setShowNotes]     = useState(false)
-  const [toast,         setToast]         = useState({ show: false, message: '' })
+  const [toast,         setToast]         = useState({ show: false, message: '', type: 'success' })
 
   const { lessons, loading: lessonsLoading } = useLessons(courseId)
+
   const {
     completedLessons, markComplete, getPercent, isCompleted, justCompleted,
   } = useProgress(user?.uid, courseId)
@@ -57,7 +60,7 @@ export default function CoursePage() {
     questions, quizPassed, hasQuiz, quizLoading, submitQuiz, quizResult,
   } = useQuiz(user?.uid, activeLesson?.id, courseId)
 
-  // Load course
+  // ── Load course ───────────────────────────────────────────────
   useEffect(() => {
     getCourse(courseId).then(data => {
       setCourse(data)
@@ -65,70 +68,120 @@ export default function CoursePage() {
     })
   }, [courseId])
 
-  // Auto-select: resume last lesson OR first incomplete
+  // ── Sequential: first unlocked lesson select ──────────────────
+  // A lesson is unlocked if index=0 OR previous lesson is completed
+  const isLessonLocked = useCallback((index) => {
+    if (index === 0) return false
+    const prev = lessons[index - 1]
+    return !completedLessons.includes(prev.id)
+  }, [lessons, completedLessons])
+
+  // ── Auto-select: resume or first unlocked ─────────────────────
   useEffect(() => {
     if (lessons.length === 0 || activeLesson) return
     const resume = async () => {
       const lastId = await getLast()
       if (lastId) {
-        const found = lessons.find(l => l.id === lastId)
-        if (found) { setActiveLesson(found); return }
+        const found      = lessons.find(l => l.id === lastId)
+        const foundIndex = lessons.findIndex(l => l.id === lastId)
+        if (found && !isLessonLocked(foundIndex)) {
+          setActiveLesson(found)
+          return
+        }
       }
-      const firstIncomplete = lessons.find(l => !completedLessons.includes(l.id))
-      setActiveLesson(firstIncomplete || lessons[0])
+      // First incomplete unlocked lesson
+      const firstUnlocked = lessons.find((l, i) => !isLessonLocked(i) && !completedLessons.includes(l.id))
+      setActiveLesson(firstUnlocked || lessons[0])
     }
     resume()
   }, [lessons, completedLessons])
 
-  // Save last lesson on change
+  // ── Save last lesson ──────────────────────────────────────────
   useEffect(() => {
     if (activeLesson?.id) saveLastLesson(activeLesson.id)
   }, [activeLesson?.id])
 
-  // Close quiz modal when switching lessons
+  // ── Close quiz on lesson change ───────────────────────────────
   useEffect(() => {
     setShowQuiz(false)
   }, [activeLesson?.id])
 
-  // Toast on completion
+  // ── Toast on completion ───────────────────────────────────────
   useEffect(() => {
     if (!justCompleted) return
     const lesson = lessons.find(l => l.id === justCompleted)
-    setToast({ show: true, message: `"${lesson?.title || 'Lesson'}" marked as complete!` })
+
+    // Check if next lesson is now unlocked
+    const currentIdx = lessons.findIndex(l => l.id === justCompleted)
+    const nextLesson = lessons[currentIdx + 1]
+    const msg = nextLesson
+      ? `"${lesson?.title}" complete! "${nextLesson.title}" unlocked.`
+      : `"${lesson?.title}" complete! Course finished! 🎓`
+
+    setToast({ show: true, message: msg, type: 'success' })
   }, [justCompleted])
 
   const percent      = getPercent(lessons.length)
   const currentIndex = lessons.findIndex(l => l.id === activeLesson?.id)
-  const hasPrev      = currentIndex > 0
-  const hasNext      = currentIndex < lessons.length - 1
   const lessonDone   = activeLesson ? isCompleted(activeLesson.id) : false
   const lessonBm     = activeLesson ? isBookmarked(activeLesson.id) : false
 
-  // What action button to show:
-  // 1. lessonDone → "Completed" (green, no action)
-  // 2. hasQuiz && !quizPassed && !quizLoading → "Take Quiz"
-  // 3. !hasQuiz && !quizLoading → "Mark Complete"
-  // 4. quizLoading → disabled button
+  // Prev/Next — only allow navigating to unlocked lessons
+  const prevLesson = (() => {
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      if (!isLessonLocked(i)) return lessons[i]
+    }
+    return null
+  })()
+
+  const nextLesson = (() => {
+    for (let i = currentIndex + 1; i < lessons.length; i++) {
+      if (!isLessonLocked(i)) return lessons[i]
+    }
+    return null
+  })()
+
+  const handleLockedClick = () => {
+    setToast({
+      show:    true,
+      message: 'Complete the previous lesson first to unlock this one.',
+      type:    'warning',
+    })
+  }
 
   const handleMarkComplete = async () => {
     if (!activeLesson || lessonDone || marking) return
     setMarking(true)
     await markComplete(activeLesson.id)
     setMarking(false)
-    if (hasNext) setTimeout(() => setActiveLesson(lessons[currentIndex + 1]), 800)
+    // Auto-advance to next unlocked lesson
+    const nextIdx = currentIndex + 1
+    if (nextIdx < lessons.length && !isLessonLocked(nextIdx)) {
+      setTimeout(() => setActiveLesson(lessons[nextIdx]), 800)
+    }
   }
 
   const handleQuizPass = async () => {
-    // Called when quiz modal reports a pass
     if (!activeLesson || lessonDone) return
     await markComplete(activeLesson.id)
-    if (hasNext) setTimeout(() => setActiveLesson(lessons[currentIndex + 1]), 1200)
+    const nextIdx = currentIndex + 1
+    if (nextIdx < lessons.length) {
+      setTimeout(() => setActiveLesson(lessons[nextIdx]), 1200)
+    }
   }
 
   const handleSelectLesson = useCallback((lesson) => {
     setActiveLesson(lesson)
     setSidebarOpen(false)
   }, [])
+
+  const handleDownloadNotes = () => {
+    if (!noteText?.trim()) {
+      setToast({ show: true, message: 'No notes to download for this lesson.', type: 'warning' })
+      return
+    }
+    downloadNotes(noteText, activeLesson?.title || 'Lesson')
+  }
 
   const loading = courseLoading || lessonsLoading
 
@@ -169,7 +222,7 @@ export default function CoursePage() {
 
       <div className="flex-1 lg:ml-64 flex flex-col min-h-screen overflow-hidden">
 
-        {/* Top bar */}
+        {/* ── Top bar ───────────────────────────────────────────── */}
         <div className="sticky top-0 z-30 bg-dark-950/95 backdrop-blur-md border-b border-dark-800
                         px-4 sm:px-6 py-3.5">
           <div className="flex items-center gap-3 sm:gap-4">
@@ -186,10 +239,11 @@ export default function CoursePage() {
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-white font-display font-700 text-sm truncate">{course.title}</h1>
+                <h1 className="text-white font-display font-700 text-sm truncate">
+                  {course.title}
+                </h1>
                 {percent === 100 && (
-                  <span className="badge bg-emerald-500/15 text-emerald-400 border border-emerald-500/20
-                                   text-xs shrink-0">
+                  <span className="badge bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 text-xs shrink-0">
                     🎓 Complete
                   </span>
                 )}
@@ -228,7 +282,7 @@ export default function CoursePage() {
           </div>
         </div>
 
-        {/* Body */}
+        {/* ── Body ─────────────────────────────────────────────── */}
         <div className="flex flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-5">
@@ -239,13 +293,14 @@ export default function CoursePage() {
                 <Spinner text="Loading lesson..." />
               ) : (
                 <>
+                  {/* Video */}
                   <VideoPlayer youtubeUrl={activeLesson.youtubeUrl} title={activeLesson.title} />
 
                   {/* Prev / Next */}
                   <div className="flex items-center justify-between">
                     <button
-                      onClick={() => hasPrev && setActiveLesson(lessons[currentIndex - 1])}
-                      disabled={!hasPrev}
+                      onClick={() => prevLesson && setActiveLesson(prevLesson)}
+                      disabled={!prevLesson}
                       className="btn-secondary px-3 sm:px-4 py-2 text-xs
                                  disabled:opacity-30 disabled:cursor-not-allowed"
                     >
@@ -255,8 +310,20 @@ export default function CoursePage() {
                       {currentIndex + 1} / {lessons.length}
                     </span>
                     <button
-                      onClick={() => hasNext && setActiveLesson(lessons[currentIndex + 1])}
-                      disabled={!hasNext}
+                      onClick={() => {
+                        if (!nextLesson) return
+                        // Check if current is done before allowing next
+                        if (!lessonDone) {
+                          setToast({
+                            show:    true,
+                            message: 'Complete this lesson first before moving to the next.',
+                            type:    'warning',
+                          })
+                          return
+                        }
+                        setActiveLesson(nextLesson)
+                      }}
+                      disabled={!nextLesson}
                       className="btn-secondary px-3 sm:px-4 py-2 text-xs
                                  disabled:opacity-30 disabled:cursor-not-allowed"
                     >
@@ -264,8 +331,9 @@ export default function CoursePage() {
                     </button>
                   </div>
 
-                  {/* Lesson info card */}
+                  {/* ── Lesson info card ─────────────────────────── */}
                   <div className="card p-4 sm:p-6">
+                    {/* Badges row */}
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span className="badge bg-brand-600/15 text-brand-400 border border-brand-600/20 text-xs">
                         Lesson {currentIndex + 1}
@@ -297,14 +365,15 @@ export default function CoursePage() {
                       </p>
                     )}
 
-                    {/* Quiz failed message */}
+                    {/* Failed quiz hint */}
                     {hasQuiz && !lessonDone && quizResult && !quizResult.passed && (
                       <div className="mt-4 flex items-start gap-3 px-4 py-3 rounded-xl
                                       bg-amber-500/10 border border-amber-500/20">
                         <HelpCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
                         <div>
                           <p className="text-sm font-display font-600 text-amber-300">
-                            Previous attempt: {quizResult.score}/{quizResult.total} — need {Math.ceil(quizResult.total * 0.8)}/{quizResult.total}
+                            Last attempt: {quizResult.score}/{quizResult.total} — need{' '}
+                            {Math.ceil(quizResult.total * 0.8)}/{quizResult.total} to pass
                           </p>
                           <p className="text-xs text-amber-500 mt-0.5">
                             Rewatch the video carefully, then try the quiz again.
@@ -315,9 +384,9 @@ export default function CoursePage() {
 
                     <div className="h-px bg-dark-800 my-5" />
 
-                    {/* Action buttons */}
+                    {/* ── Action buttons ─────────────────────────── */}
                     <div className="flex flex-wrap items-center gap-3">
-                      <ResourceButton resourceLink={activeLesson.resourceLink} />
+                      <ResourceButton resourceLink={activeLesson.resourceLink} resources={activeLesson.resources || []} />
 
                       {/* Bookmark */}
                       <button
@@ -350,16 +419,14 @@ export default function CoursePage() {
                         )}
                       </button>
 
-                      {/* ── Main action button ── */}
+                      {/* ── Main CTA ── */}
                       {lessonDone ? (
-                        // Already done
                         <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg
                                         bg-emerald-500/10 border border-emerald-500/20 text-emerald-400
                                         text-sm font-display font-600">
                           <CheckCircle size={16} /> Completed
                         </div>
                       ) : quizLoading ? (
-                        // Quiz data loading — show disabled
                         <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg
                                         bg-dark-800 border border-dark-700 text-dark-500
                                         text-sm font-display font-600 cursor-wait">
@@ -368,7 +435,6 @@ export default function CoursePage() {
                           Loading...
                         </div>
                       ) : hasQuiz ? (
-                        // Has quiz — must pass to complete
                         <button
                           onClick={() => setShowQuiz(true)}
                           className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-lg
@@ -380,7 +446,6 @@ export default function CoursePage() {
                           {quizResult ? 'Retake Quiz' : 'Take Quiz'}
                         </button>
                       ) : (
-                        // No quiz — direct mark complete
                         <button
                           onClick={handleMarkComplete}
                           disabled={marking}
@@ -404,7 +469,7 @@ export default function CoursePage() {
                       )}
                     </div>
 
-                    {/* Notes panel */}
+                    {/* ── Notes panel ─────────────────────────────── */}
                     {showNotes && (
                       <div className="mt-5 pt-5 border-t border-dark-800">
                         <div className="flex items-center justify-between mb-3">
@@ -412,15 +477,35 @@ export default function CoursePage() {
                             <FileText size={14} className="text-brand-400" />
                             My Notes
                           </h3>
-                          <span className="text-xs text-dark-500">
-                            {noteSaving ? 'Saving...' : noteSaved ? '✓ Saved' : 'Auto-saves as you type'}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-dark-500">
+                              {noteSaving
+                                ? 'Saving...'
+                                : noteSaved
+                                  ? '✓ Saved'
+                                  : 'Auto-saves as you type'
+                              }
+                            </span>
+                            {/* Download notes button */}
+                            <button
+                              onClick={handleDownloadNotes}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                                          text-xs font-display font-600 transition-all border
+                                          ${noteText?.trim()
+                                            ? 'bg-brand-600/10 border-brand-600/25 text-brand-400 hover:bg-brand-600/20'
+                                            : 'bg-dark-800 border-dark-700 text-dark-600 cursor-not-allowed'
+                                          }`}
+                            >
+                              <Download size={12} />
+                              Download
+                            </button>
+                          </div>
                         </div>
                         <textarea
                           value={noteText}
                           onChange={e => handleNoteChange(e.target.value)}
-                          placeholder="Write your notes... (auto-saved)"
-                          rows={5}
+                          placeholder="Write your notes for this lesson... (auto-saved)"
+                          rows={6}
                           className="w-full bg-dark-800 border border-dark-700 rounded-lg px-4 py-3
                                      text-dark-100 placeholder-dark-500 text-sm font-body resize-none
                                      focus:outline-none focus:ring-2 focus:ring-brand-500
@@ -430,7 +515,7 @@ export default function CoursePage() {
                     )}
                   </div>
 
-                  {/* Progress card */}
+                  {/* ── Progress card ────────────────────────────── */}
                   <div className="card p-5">
                     <div className="flex items-center justify-between mb-4">
                       <div>
@@ -441,10 +526,7 @@ export default function CoursePage() {
                       </div>
                       <ProgressRing percent={percent} size={52} stroke={4} />
                     </div>
-                    <ProgressBar
-                      percent={percent} size="lg"
-                      color={percent === 100 ? 'emerald' : 'brand'}
-                    />
+                    <ProgressBar percent={percent} size="lg" color={percent === 100 ? 'emerald' : 'brand'} />
                     {percent === 100 && (
                       <div className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl
                                       bg-emerald-500/10 border border-emerald-500/20">
@@ -454,64 +536,87 @@ export default function CoursePage() {
                             Course Complete! 🎓
                           </p>
                           <p className="text-xs text-emerald-500 mt-0.5">
-                            You've completed all {lessons.length} lessons.
+                            All {lessons.length} lessons completed.
                           </p>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Lesson checklist */}
+                  {/* ── Lesson checklist ─────────────────────────── */}
                   <div className="card p-5">
-                    <h3 className="text-sm font-display font-700 text-white mb-4">Lesson Checklist</h3>
+                    <h3 className="text-sm font-display font-700 text-white mb-4">
+                      Lesson Checklist
+                    </h3>
                     <div className="space-y-2">
-                      {lessons.map((lesson, i) => (
-                        <button
-                          key={lesson.id}
-                          onClick={() => setActiveLesson(lesson)}
-                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border
-                                      text-left transition-all duration-200
-                                      ${activeLesson?.id === lesson.id
-                                        ? 'bg-brand-600/10 border-brand-600/25'
-                                        : isCompleted(lesson.id)
-                                          ? 'bg-emerald-500/5 border-emerald-500/15 hover:border-emerald-500/25'
-                                          : 'bg-dark-900 border-dark-800 hover:border-dark-700'
-                                      }`}
-                        >
-                          {isCompleted(lesson.id) ? (
-                            <CheckCircle size={16} className="text-emerald-400 shrink-0" />
-                          ) : (
-                            <div className={`w-4 h-4 rounded-full border-2 shrink-0
-                                             flex items-center justify-center
-                                             ${activeLesson?.id === lesson.id
-                                               ? 'border-brand-500'
-                                               : 'border-dark-600'
-                                             }`}>
-                              <span className="text-[8px] font-display font-700 text-dark-500">
-                                {i + 1}
-                              </span>
-                            </div>
-                          )}
-                          <span className={`flex-1 text-sm font-body truncate
-                                            ${activeLesson?.id === lesson.id
-                                              ? 'text-white font-500'
-                                              : isCompleted(lesson.id)
-                                                ? 'text-dark-300'
-                                                : 'text-dark-400'
-                                            }`}>
-                            {lesson.title}
-                          </span>
-                          {isBookmarked(lesson.id) && (
-                            <Bookmark size={12} className="text-amber-400 fill-amber-400 shrink-0" />
-                          )}
-                          {activeLesson?.id === lesson.id && (
-                            <span className="badge bg-brand-600/20 text-brand-400
-                                             border border-brand-600/30 text-[10px] shrink-0">
-                              Playing
+                      {lessons.map((lesson, i) => {
+                        const locked = isLessonLocked(i)
+                        const done   = isCompleted(lesson.id)
+                        const active = activeLesson?.id === lesson.id
+                        return (
+                          <button
+                            key={lesson.id}
+                            onClick={() => {
+                              if (locked) { handleLockedClick(); return }
+                              setActiveLesson(lesson)
+                            }}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border
+                                        text-left transition-all duration-200
+                                        ${locked
+                                          ? 'opacity-40 cursor-not-allowed bg-dark-900 border-dark-800'
+                                          : active
+                                            ? 'bg-brand-600/10 border-brand-600/25 cursor-pointer'
+                                            : done
+                                              ? 'bg-emerald-500/5 border-emerald-500/15 hover:border-emerald-500/25 cursor-pointer'
+                                              : 'bg-dark-900 border-dark-800 hover:border-dark-700 cursor-pointer'
+                                        }`}
+                          >
+                            {/* Icon */}
+                            {locked ? (
+                              <Lock size={14} className="text-dark-700 shrink-0" />
+                            ) : done ? (
+                              <CheckCircle size={16} className="text-emerald-400 shrink-0" />
+                            ) : (
+                              <div className={`w-4 h-4 rounded-full border-2 shrink-0
+                                               flex items-center justify-center
+                                               ${active ? 'border-brand-500' : 'border-dark-600'}`}>
+                                <span className="text-[8px] font-display font-700 text-dark-500">
+                                  {i + 1}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Title */}
+                            <span className={`flex-1 text-sm font-body truncate
+                                              ${locked
+                                                ? 'text-dark-700'
+                                                : active
+                                                  ? 'text-white font-500'
+                                                  : done
+                                                    ? 'text-dark-300'
+                                                    : 'text-dark-400'
+                                              }`}>
+                              {lesson.title}
                             </span>
-                          )}
-                        </button>
-                      ))}
+
+                            {/* Right badges */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isBookmarked(lesson.id) && !locked && (
+                                <Bookmark size={11} className="text-amber-400 fill-amber-400" />
+                              )}
+                              {locked && (
+                                <span className="text-[9px] text-dark-700 font-display">Locked</span>
+                              )}
+                              {active && !locked && (
+                                <span className="badge bg-brand-600/20 text-brand-400
+                                                 border border-brand-600/30 text-[10px]">
+                                  Playing
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 </>
@@ -519,7 +624,7 @@ export default function CoursePage() {
             </div>
           </div>
 
-          {/* Desktop playlist */}
+          {/* ── Desktop playlist ──────────────────────────────────── */}
           <div className="hidden lg:flex flex-col w-80 xl:w-96 border-l border-dark-800
                           bg-dark-900/40 overflow-hidden shrink-0">
             <LessonPlaylist
@@ -528,10 +633,11 @@ export default function CoursePage() {
               completedLessons={completedLessons}
               bookmarkedLessons={bookmarkedLessons}
               onSelect={handleSelectLesson}
+              onLockedClick={handleLockedClick}
             />
           </div>
 
-          {/* Mobile playlist */}
+          {/* ── Mobile playlist ───────────────────────────────────── */}
           {sidebarOpen && (
             <div className="lg:hidden fixed inset-0 z-50 flex">
               <div
@@ -556,6 +662,7 @@ export default function CoursePage() {
                   completedLessons={completedLessons}
                   bookmarkedLessons={bookmarkedLessons}
                   onSelect={handleSelectLesson}
+                  onLockedClick={handleLockedClick}
                 />
               </div>
             </div>
@@ -575,10 +682,12 @@ export default function CoursePage() {
         />
       )}
 
+      {/* Toast */}
       <ProgressToast
         show={toast.show}
         message={toast.message}
-        onClose={() => setToast({ show: false, message: '' })}
+        type={toast.type}
+        onClose={() => setToast(t => ({ ...t, show: false }))}
       />
     </div>
   )

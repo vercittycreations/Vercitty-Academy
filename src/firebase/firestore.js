@@ -27,7 +27,9 @@ export const deleteUserDoc = (uid) =>
 
 // ─── COURSES ──────────────────────────────────────────────────────────────────
 export const createCourse = (data) =>
-  addDoc(collection(db, 'courses'), { ...data, createdAt: serverTimestamp() })
+  addDoc(collection(db, 'courses'), {
+    status: 'published', ...data, createdAt: serverTimestamp()
+  })
 
 export const getCourse = async (courseId) => {
   const snap = await getDoc(doc(db, 'courses', courseId))
@@ -41,6 +43,9 @@ export const getAllCourses = async () => {
 
 export const updateCourse = (courseId, data) =>
   updateDoc(doc(db, 'courses', courseId), data)
+
+export const updateCourseStatus = (courseId, status) =>
+  updateDoc(doc(db, 'courses', courseId), { status })
 
 export const deleteCourse = (courseId) =>
   deleteDoc(doc(db, 'courses', courseId))
@@ -108,6 +113,12 @@ export const getAssignmentsForUser = async (userId) => {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
 
+// Get ALL userCourses in one query — used by Progress Dashboard
+export const getAllUserCoursesFlat = async () => {
+  const snap = await getDocs(collection(db, 'userCourses'))
+  return snap.docs.map(d => d.data())
+}
+
 // ─── PROGRESS ─────────────────────────────────────────────────────────────────
 export const markLessonComplete = async (userId, courseId, lessonId) => {
   const q = query(
@@ -150,15 +161,11 @@ export const subscribeToProgress = (userId, courseId, callback) => {
 
 // ─── BOOKMARKS ────────────────────────────────────────────────────────────────
 export const toggleBookmark = async (userId, lessonId, courseId) => {
-  const ref = doc(db, 'bookmarks', `${userId}_${lessonId}`)
+  const ref  = doc(db, 'bookmarks', `${userId}_${lessonId}`)
   const snap = await getDoc(ref)
-  if (snap.exists()) {
-    await deleteDoc(ref)
-    return false
-  } else {
-    await setDoc(ref, { userId, lessonId, courseId, savedAt: serverTimestamp() })
-    return true
-  }
+  if (snap.exists()) { await deleteDoc(ref); return false }
+  await setDoc(ref, { userId, lessonId, courseId, savedAt: serverTimestamp() })
+  return true
 }
 
 export const subscribeToBookmarks = (userId, courseId, callback) => {
@@ -195,13 +202,8 @@ export const getLastLesson = async (userId, courseId) => {
 }
 
 // ─── QUESTION BANK ────────────────────────────────────────────────────────────
-// Each question: { question, options:[A,B,C,D], correctIndex, topic, difficulty }
-
 export const createBankQuestion = (data) =>
-  addDoc(collection(db, 'questionBank'), {
-    ...data,
-    createdAt: serverTimestamp(),
-  })
+  addDoc(collection(db, 'questionBank'), { ...data, createdAt: serverTimestamp() })
 
 export const getAllBankQuestions = async () => {
   const snap = await getDocs(
@@ -216,15 +218,10 @@ export const updateBankQuestion = (id, data) =>
 export const deleteBankQuestion = (id) =>
   deleteDoc(doc(db, 'questionBank', id))
 
-// ─── QUIZ (attached to lesson — picks from bank OR custom) ────────────────────
-// quizQuestions/{lessonId} → { lessonId, questionIds: [...] }
-// questionIds are IDs from questionBank collection
-
+// ─── QUIZ ─────────────────────────────────────────────────────────────────────
 export const setLessonQuiz = (lessonId, questionIds) =>
   setDoc(doc(db, 'quizQuestions', lessonId), {
-    lessonId,
-    questionIds,
-    updatedAt: serverTimestamp(),
+    lessonId, questionIds, updatedAt: serverTimestamp()
   })
 
 export const getLessonQuizIds = async (lessonId) => {
@@ -232,7 +229,6 @@ export const getLessonQuizIds = async (lessonId) => {
   return snap.exists() ? (snap.data().questionIds || []) : []
 }
 
-// Get full question objects for a lesson
 export const getLessonQuestions = async (lessonId) => {
   const ids = await getLessonQuizIds(lessonId)
   if (ids.length === 0) return []
