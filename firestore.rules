@@ -2,61 +2,87 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── helpers ──────────────────────────────────────────────────
-    function isAuth()  { return request.auth != null; }
-    function uid()     { return request.auth.uid; }
+    function isLoggedIn() {
+      return request.auth != null;
+    }
     function isAdmin() {
-      return isAuth() &&
-             get(/databases/$(database)/documents/users/$(uid())).data.role == 'admin';
+      return isLoggedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-    function isSelf(userId) { return isAuth() && uid() == userId; }
 
-    // ── users ─────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read:   if isAuth() && (isSelf(userId) || isAdmin());
-      allow create: if isAuth();
-      allow update: if isAdmin() || isSelf(userId);
-      allow delete: if isAdmin();
-    }
-
-    // ── courses ───────────────────────────────────────────────────
-    match /courses/{courseId} {
-      allow read: if isAuth() && (
-        isAdmin() ||
-        exists(/databases/$(database)/documents/userCourses/$(uid() + '_' + courseId)) ||
-        query_has_user()
-      );
-      allow write: if isAdmin();
-
-      function query_has_user() {
-        return isAuth();  // secondary check done client-side via userCourses
-      }
-    }
-
-    // ── lessons ───────────────────────────────────────────────────
-    match /lessons/{lessonId} {
-      allow read:  if isAuth();
-      allow write: if isAdmin();
-    }
-
-    // ── userCourses ───────────────────────────────────────────────
-    match /userCourses/{docId} {
-      allow read:   if isAuth() && (
-        isAdmin() ||
-        resource.data.userId == uid()
-      );
+      allow read: if isLoggedIn();
       allow create: if isAdmin();
+      allow update: if isLoggedIn() && (request.auth.uid == userId || isAdmin());
       allow delete: if isAdmin();
-      allow update: if isAdmin();
     }
 
-    // ── progress ──────────────────────────────────────────────────
+    match /courses/{courseId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    match /lessons/{lessonId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    match /userCourses/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+      allow update: if isLoggedIn() && resource.data.userId == request.auth.uid;
+    }
+
     match /progress/{docId} {
-      allow read:   if isAuth() && (
-        isAdmin() || resource.data.userId == uid()
-      );
-      allow create: if isAuth() && request.resource.data.userId == uid();
-      allow update: if isAuth() && resource.data.userId == uid();
+      allow read: if isLoggedIn();
+      allow create: if isLoggedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isLoggedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /bookmarks/{docId} {
+      allow read, write: if isLoggedIn();
+    }
+
+    match /notes/{docId} {
+      allow read, write: if isLoggedIn();
+    }
+
+    match /lastLesson/{docId} {
+      allow read, write: if isLoggedIn();
+    }
+
+    match /quizQuestions/{lessonId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    match /questionBank/{questionId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    match /quizResults/{docId} {
+      allow read: if isLoggedIn();
+      allow create: if isLoggedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isLoggedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    // Login history — user writes own, admin reads all
+    match /loginHistory/{docId} {
+      allow read: if isLoggedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isLoggedIn() &&
+        request.resource.data.userId == request.auth.uid;
+    }
+
+    // Course feedback — user writes own, all can read ratings
+    match /courseFeedback/{docId} {
+      allow read: if isLoggedIn();
+      allow create: if isLoggedIn() &&
+        request.resource.data.userId == request.auth.uid;
+      allow update: if isLoggedIn() &&
+        resource.data.userId == request.auth.uid;
       allow delete: if isAdmin();
     }
   }

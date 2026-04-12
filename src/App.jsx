@@ -12,6 +12,8 @@ import ManageLessons      from './pages/admin/ManageLessons'
 import AssignCourses      from './pages/admin/AssignCourses'
 import QuestionBank       from './pages/admin/QuestionBank'
 import ProgressDashboard  from './pages/admin/ProgressDashboard'
+import ActivityFeed       from './pages/admin/ActivityFeed'
+import StudentLoginHistory from './pages/admin/StudentLoginHistory'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -22,7 +24,7 @@ function PrivateRoute({ children }) {
 function AdminRoute({ children }) {
   const { user, isAdmin, loading } = useAuth()
   if (loading) return <Loader />
-  if (!user) return <Navigate to="/login" replace />
+  if (!user)    return <Navigate to="/login"     replace />
   if (!isAdmin) return <Navigate to="/dashboard" replace />
   return children
 }
@@ -62,6 +64,8 @@ export default function App() {
         <Route path="/admin/assign"                    element={<AdminRoute><AssignCourses /></AdminRoute>} />
         <Route path="/admin/questions"                 element={<AdminRoute><QuestionBank /></AdminRoute>} />
         <Route path="/admin/progress"                  element={<AdminRoute><ProgressDashboard /></AdminRoute>} />
+        <Route path="/admin/activity"                  element={<AdminRoute><ActivityFeed /></AdminRoute>} />
+        <Route path="/admin/logins"                    element={<AdminRoute><StudentLoginHistory /></AdminRoute>} />
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

@@ -1,44 +1,46 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate }            from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, BookOpen,
   ChevronLeft, ChevronRight, Menu, X,
   Layers, Trophy, Bookmark, FileText,
   HelpCircle, Lock, Download
 } from 'lucide-react'
-import Sidebar          from '../components/layout/Sidebar'
-import VideoPlayer      from '../components/course/VideoPlayer'
-import LessonPlaylist   from '../components/course/LessonPlaylist'
-import ResourceButton   from '../components/course/ResourceButton'
-import ProgressBar      from '../components/ui/ProgressBar'
-import ProgressRing     from '../components/ui/ProgressRing'
-import ProgressToast    from '../components/progress/ProgressToast'
-import QuizModal        from '../components/course/QuizModal'
-import Spinner          from '../components/ui/Spinner'
-import EmptyState       from '../components/ui/EmptyState'
-import { useAuth }      from '../context/AuthContext'
-import { useLessons }   from '../hooks/useLessons'
-import { useProgress }  from '../hooks/useProgress'
+import CourseFeedbackModal from '../components/course/CourseFeedbackModal'
+import { saveCourseFeedback, getCourseFeedback } from '../firebase/firestore'
+import Sidebar from '../components/layout/Sidebar'
+import VideoPlayer from '../components/course/VideoPlayer'
+import LessonPlaylist from '../components/course/LessonPlaylist'
+import ResourceButton from '../components/course/ResourceButton'
+import ProgressBar from '../components/ui/ProgressBar'
+import ProgressRing from '../components/ui/ProgressRing'
+import ProgressToast from '../components/progress/ProgressToast'
+import QuizModal from '../components/course/QuizModal'
+import Spinner from '../components/ui/Spinner'
+import EmptyState from '../components/ui/EmptyState'
+import { useAuth } from '../context/AuthContext'
+import { useLessons } from '../hooks/useLessons'
+import { useProgress } from '../hooks/useProgress'
 import { useBookmarks } from '../hooks/useBookmarks'
-import { useNotes }     from '../hooks/useNotes'
+import { useNotes } from '../hooks/useNotes'
 import { useLastLesson } from '../hooks/useLastLesson'
-import { useQuiz }      from '../hooks/useQuiz'
-import { getCourse }    from '../firebase/firestore'
+import { useQuiz } from '../hooks/useQuiz'
+import { getCourse } from '../firebase/firestore'
 import { downloadNotes } from '../utils/notes'
 
 export default function CoursePage() {
   const { courseId } = useParams()
-  const navigate     = useNavigate()
-  const { user }     = useAuth()
+  const navigate = useNavigate()
+  const { user } = useAuth()
 
-  const [course,        setCourse]        = useState(null)
+  const [course, setCourse] = useState(null)
   const [courseLoading, setCourseLoading] = useState(true)
-  const [activeLesson,  setActiveLesson]  = useState(null)
-  const [sidebarOpen,   setSidebarOpen]   = useState(false)
-  const [marking,       setMarking]       = useState(false)
-  const [showQuiz,      setShowQuiz]      = useState(false)
-  const [showNotes,     setShowNotes]     = useState(false)
-  const [toast,         setToast]         = useState({ show: false, message: '', type: 'success' })
+  const [activeLesson, setActiveLesson] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [marking, setMarking] = useState(false)
+  const [showQuiz, setShowQuiz] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
 
   const { lessons, loading: lessonsLoading } = useLessons(courseId)
 
@@ -60,6 +62,9 @@ export default function CoursePage() {
     questions, quizPassed, hasQuiz, quizLoading, submitQuiz, quizResult,
   } = useQuiz(user?.uid, activeLesson?.id, courseId)
 
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+
   // ── Load course ───────────────────────────────────────────────
   useEffect(() => {
     getCourse(courseId).then(data => {
@@ -76,13 +81,26 @@ export default function CoursePage() {
     return !completedLessons.includes(prev.id)
   }, [lessons, completedLessons])
 
+  // Show feedback modal when course completes (once)
+  useEffect(() => {
+    if (percent !== 100 || feedbackSubmitted || !user || !courseId) return
+    getCourseFeedback(user.uid, courseId).then(existing => {
+      if (!existing) {
+        // Small delay so completion toast shows first
+        setTimeout(() => setShowFeedback(true), 2000)
+      } else {
+        setFeedbackSubmitted(true)
+      }
+    })
+  }, [percent, user, courseId, feedbackSubmitted])
+
   // ── Auto-select: resume or first unlocked ─────────────────────
   useEffect(() => {
     if (lessons.length === 0 || activeLesson) return
     const resume = async () => {
       const lastId = await getLast()
       if (lastId) {
-        const found      = lessons.find(l => l.id === lastId)
+        const found = lessons.find(l => l.id === lastId)
         const foundIndex = lessons.findIndex(l => l.id === lastId)
         if (found && !isLessonLocked(foundIndex)) {
           setActiveLesson(found)
@@ -120,11 +138,16 @@ export default function CoursePage() {
 
     setToast({ show: true, message: msg, type: 'success' })
   }, [justCompleted])
-
-  const percent      = getPercent(lessons.length)
+  const handleFeedbackSubmit = async (data) => {
+    await saveCourseFeedback(user.uid, courseId, data)
+    setFeedbackSubmitted(true)
+    setShowFeedback(false)
+    setToast({ show: true, message: 'Thank you for your feedback!', type: 'success' })
+  }
+  const percent = getPercent(lessons.length)
   const currentIndex = lessons.findIndex(l => l.id === activeLesson?.id)
-  const lessonDone   = activeLesson ? isCompleted(activeLesson.id) : false
-  const lessonBm     = activeLesson ? isBookmarked(activeLesson.id) : false
+  const lessonDone = activeLesson ? isCompleted(activeLesson.id) : false
+  const lessonBm = activeLesson ? isBookmarked(activeLesson.id) : false
 
   // Prev/Next — only allow navigating to unlocked lessons
   const prevLesson = (() => {
@@ -143,9 +166,9 @@ export default function CoursePage() {
 
   const handleLockedClick = () => {
     setToast({
-      show:    true,
+      show: true,
       message: 'Complete the previous lesson first to unlock this one.',
-      type:    'warning',
+      type: 'warning',
     })
   }
 
@@ -253,9 +276,9 @@ export default function CoursePage() {
                   <div
                     className={`h-full rounded-full bg-gradient-to-r transition-all duration-700
                                 ${percent === 100
-                                  ? 'from-emerald-500 to-emerald-400'
-                                  : 'from-brand-500 to-brand-400'
-                                }`}
+                        ? 'from-emerald-500 to-emerald-400'
+                        : 'from-brand-500 to-brand-400'
+                      }`}
                     style={{ width: `${percent}%` }}
                   />
                 </div>
@@ -315,9 +338,9 @@ export default function CoursePage() {
                         // Check if current is done before allowing next
                         if (!lessonDone) {
                           setToast({
-                            show:    true,
+                            show: true,
                             message: 'Complete this lesson first before moving to the next.',
-                            type:    'warning',
+                            type: 'warning',
                           })
                           return
                         }
@@ -394,9 +417,9 @@ export default function CoursePage() {
                         className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm
                                     font-display font-600 transition-all duration-200 border
                                     ${lessonBm
-                                      ? 'bg-amber-500/15 text-amber-400 border-amber-500/25 hover:bg-amber-500/25'
-                                      : 'bg-dark-800 text-dark-300 border-dark-700 hover:border-dark-500 hover:text-white'
-                                    }`}
+                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/25 hover:bg-amber-500/25'
+                            : 'bg-dark-800 text-dark-300 border-dark-700 hover:border-dark-500 hover:text-white'
+                          }`}
                       >
                         <Bookmark size={15} className={lessonBm ? 'fill-amber-400' : ''} />
                         {lessonBm ? 'Saved' : 'Save'}
@@ -408,9 +431,9 @@ export default function CoursePage() {
                         className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm
                                     font-display font-600 transition-all duration-200 border
                                     ${showNotes
-                                      ? 'bg-brand-600/15 text-brand-400 border-brand-600/25'
-                                      : 'bg-dark-800 text-dark-300 border-dark-700 hover:border-dark-500 hover:text-white'
-                                    }`}
+                            ? 'bg-brand-600/15 text-brand-400 border-brand-600/25'
+                            : 'bg-dark-800 text-dark-300 border-dark-700 hover:border-dark-500 hover:text-white'
+                          }`}
                       >
                         <FileText size={15} />
                         Notes
@@ -452,9 +475,9 @@ export default function CoursePage() {
                           className={`inline-flex items-center gap-2.5 px-5 py-2.5 rounded-lg
                                       text-sm font-display font-600 transition-all duration-200
                                       ${marking
-                                        ? 'bg-brand-600/20 text-brand-400 cursor-not-allowed'
-                                        : 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/25 hover:scale-[1.02]'
-                                      }`}
+                              ? 'bg-brand-600/20 text-brand-400 cursor-not-allowed'
+                              : 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/25 hover:scale-[1.02]'
+                            }`}
                         >
                           {marking ? (
                             <>
@@ -492,9 +515,9 @@ export default function CoursePage() {
                               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg
                                           text-xs font-display font-600 transition-all border
                                           ${noteText?.trim()
-                                            ? 'bg-brand-600/10 border-brand-600/25 text-brand-400 hover:bg-brand-600/20'
-                                            : 'bg-dark-800 border-dark-700 text-dark-600 cursor-not-allowed'
-                                          }`}
+                                  ? 'bg-brand-600/10 border-brand-600/25 text-brand-400 hover:bg-brand-600/20'
+                                  : 'bg-dark-800 border-dark-700 text-dark-600 cursor-not-allowed'
+                                }`}
                             >
                               <Download size={12} />
                               Download
@@ -551,7 +574,7 @@ export default function CoursePage() {
                     <div className="space-y-2">
                       {lessons.map((lesson, i) => {
                         const locked = isLessonLocked(i)
-                        const done   = isCompleted(lesson.id)
+                        const done = isCompleted(lesson.id)
                         const active = activeLesson?.id === lesson.id
                         return (
                           <button
@@ -563,13 +586,13 @@ export default function CoursePage() {
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border
                                         text-left transition-all duration-200
                                         ${locked
-                                          ? 'opacity-40 cursor-not-allowed bg-dark-900 border-dark-800'
-                                          : active
-                                            ? 'bg-brand-600/10 border-brand-600/25 cursor-pointer'
-                                            : done
-                                              ? 'bg-emerald-500/5 border-emerald-500/15 hover:border-emerald-500/25 cursor-pointer'
-                                              : 'bg-dark-900 border-dark-800 hover:border-dark-700 cursor-pointer'
-                                        }`}
+                                ? 'opacity-40 cursor-not-allowed bg-dark-900 border-dark-800'
+                                : active
+                                  ? 'bg-brand-600/10 border-brand-600/25 cursor-pointer'
+                                  : done
+                                    ? 'bg-emerald-500/5 border-emerald-500/15 hover:border-emerald-500/25 cursor-pointer'
+                                    : 'bg-dark-900 border-dark-800 hover:border-dark-700 cursor-pointer'
+                              }`}
                           >
                             {/* Icon */}
                             {locked ? (
@@ -589,13 +612,13 @@ export default function CoursePage() {
                             {/* Title */}
                             <span className={`flex-1 text-sm font-body truncate
                                               ${locked
-                                                ? 'text-dark-700'
-                                                : active
-                                                  ? 'text-white font-500'
-                                                  : done
-                                                    ? 'text-dark-300'
-                                                    : 'text-dark-400'
-                                              }`}>
+                                ? 'text-dark-700'
+                                : active
+                                  ? 'text-white font-500'
+                                  : done
+                                    ? 'text-dark-300'
+                                    : 'text-dark-400'
+                              }`}>
                               {lesson.title}
                             </span>
 
@@ -689,6 +712,13 @@ export default function CoursePage() {
         type={toast.type}
         onClose={() => setToast(t => ({ ...t, show: false }))}
       />
+      {showFeedback && (
+        <CourseFeedbackModal
+          course={course}
+          onSubmit={handleFeedbackSubmit}
+          onSkip={() => { setShowFeedback(false); setFeedbackSubmitted(true) }}
+        />
+      )}
     </div>
   )
 }

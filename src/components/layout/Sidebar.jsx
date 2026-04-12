@@ -3,18 +3,20 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, BookOpen, Users, GraduationCap,
   UserCheck, LogOut, Shield, Menu, X,
-  HelpCircle, TrendingUp, Download
+  HelpCircle, TrendingUp, Download, Activity, Clock
 } from 'lucide-react'
 import { useAuth }    from '../../context/AuthContext'
 import { logoutUser } from '../../firebase/auth'
 
 const adminLinks = [
-  { to: '/admin',            icon: LayoutDashboard, label: 'Overview'        },
-  { to: '/admin/users',      icon: Users,           label: 'Users'           },
-  { to: '/admin/courses',    icon: BookOpen,        label: 'Courses'         },
-  { to: '/admin/assign',     icon: UserCheck,       label: 'Assign Courses'  },
-  { to: '/admin/questions',  icon: HelpCircle,      label: 'Question Bank'   },
-  { to: '/admin/progress',   icon: TrendingUp,      label: 'Progress'        },
+  { to: '/admin',           icon: LayoutDashboard, label: 'Overview'       },
+  { to: '/admin/users',     icon: Users,           label: 'Users'          },
+  { to: '/admin/courses',   icon: BookOpen,        label: 'Courses'        },
+  { to: '/admin/assign',    icon: UserCheck,       label: 'Assign Courses' },
+  { to: '/admin/questions', icon: HelpCircle,      label: 'Question Bank'  },
+  { to: '/admin/progress',  icon: TrendingUp,      label: 'Progress'       },
+  { to: '/admin/activity',  icon: Activity,        label: 'Activity Feed'  },
+  { to: '/admin/logins',    icon: Clock,           label: 'Login History'  },
 ]
 
 const userLinks = [
@@ -24,7 +26,7 @@ const userLinks = [
 
 export default function Sidebar() {
   const { profile, isAdmin } = useAuth()
-  const navigate = useNavigate()
+  const navigate   = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const links = isAdmin ? adminLinks : userLinks
 
@@ -55,7 +57,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {isAdmin && (
           <p className="px-4 mb-2 text-xs font-display font-600 text-dark-500 uppercase tracking-widest">
             Admin
@@ -69,13 +71,13 @@ export default function Sidebar() {
             onClick={() => setMobileOpen(false)}
             className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
           >
-            <Icon size={16} />
+            <Icon size={15} />
             <span>{label}</span>
           </NavLink>
         ))}
       </nav>
 
-      {/* User footer */}
+      {/* Footer */}
       <div className="px-3 py-4 border-t border-dark-800 space-y-1">
         {isAdmin && (
           <div className="px-4 py-2 flex items-center gap-2 mb-1">
@@ -83,22 +85,25 @@ export default function Sidebar() {
             <span className="text-xs font-display text-brand-400">Admin Mode</span>
           </div>
         )}
-        <div className="px-4 py-2 rounded-lg bg-dark-800 flex items-center gap-3 mb-2">
-          <div className="w-8 h-8 rounded-full bg-brand-600/30 border border-brand-600/40 flex items-center justify-center">
+        <div className="px-4 py-2.5 rounded-lg bg-dark-800 flex items-center gap-3 mb-2">
+          <div className="w-8 h-8 rounded-full bg-brand-600/30 border border-brand-600/40
+                          flex items-center justify-center shrink-0">
             <span className="text-brand-400 font-display font-700 text-xs">
               {profile?.name?.[0]?.toUpperCase() || 'U'}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white text-xs font-display font-600 truncate">{profile?.name || 'User'}</p>
-            <p className="text-dark-400 text-xs truncate">{profile?.email}</p>
+            <p className="text-white text-xs font-display font-600 truncate">
+              {profile?.name || 'User'}
+            </p>
+            <p className="text-dark-400 text-xs truncate font-body">{profile?.email}</p>
           </div>
         </div>
         <button
           onClick={handleLogout}
           className="sidebar-link w-full text-red-400 hover:text-red-300 hover:bg-red-600/10"
         >
-          <LogOut size={16} />
+          <LogOut size={15} />
           <span>Sign Out</span>
         </button>
       </div>
@@ -113,7 +118,7 @@ export default function Sidebar() {
         <SidebarContent />
       </aside>
 
-      {/* Mobile hamburger */}
+      {/* Mobile button */}
       <button
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-50 w-10 h-10 bg-dark-900 border border-dark-700
@@ -130,7 +135,8 @@ export default function Sidebar() {
             className="absolute inset-0 bg-dark-950/80 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="relative w-72 bg-dark-900 border-r border-dark-800 flex flex-col h-full shadow-2xl">
+          <aside className="relative w-72 bg-dark-900 border-r border-dark-800
+                            flex flex-col h-full shadow-2xl">
             <SidebarContent />
           </aside>
         </div>

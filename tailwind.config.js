@@ -35,17 +35,11 @@ export default {
         }
       },
       fontFamily: {
-        display: ['"Syne"', 'sans-serif'],
-        body:    ['"DM Sans"', 'sans-serif'],
+        // Fraunces — organic curves, editorial, very premium for headings
+        display: ['"Fraunces"', 'serif'],
+        // Plus Jakarta Sans — modern, rounded, clean for body text
+        body:    ['"Plus Jakarta Sans"', 'sans-serif'],
         mono:    ['"JetBrains Mono"', 'monospace'],
-      },
-      fontWeight: {
-        300: '300',
-        400: '400',
-        500: '500',
-        600: '600',
-        700: '700',
-        800: '800',
       },
     },
   },

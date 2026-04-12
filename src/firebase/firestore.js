@@ -1,6 +1,6 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc,
-  updateDoc, deleteDoc, query, where, orderBy,
+  updateDoc, deleteDoc, query, where, orderBy, limit,
   onSnapshot, serverTimestamp,
 } from 'firebase/firestore'
 import { db } from './config'
@@ -70,7 +70,7 @@ export const updateLesson = (lessonId, data) =>
 export const deleteLesson = (lessonId) =>
   deleteDoc(doc(db, 'lessons', lessonId))
 
-// ─── USER COURSES (ASSIGNMENTS) ───────────────────────────────────────────────
+// ─── USER COURSES ─────────────────────────────────────────────────────────────
 export const assignCourseToUser = async (userId, courseId) => {
   const q = query(
     collection(db, 'userCourses'),
@@ -113,7 +113,6 @@ export const getAssignmentsForUser = async (userId) => {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
 
-// Get ALL userCourses in one query — used by Progress Dashboard
 export const getAllUserCoursesFlat = async () => {
   const snap = await getDocs(collection(db, 'userCourses'))
   return snap.docs.map(d => d.data())
@@ -159,6 +158,19 @@ export const subscribeToProgress = (userId, courseId, callback) => {
   })
 }
 
+// ─── ACTIVITY FEED (real-time) ────────────────────────────────────────────────
+export const subscribeToActivityFeed = (callback, limitCount = 25) => {
+  const q = query(
+    collection(db, 'progress'),
+    where('completed', '==', true),
+    orderBy('completedAt', 'desc'),
+    limit(limitCount)
+  )
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  })
+}
+
 // ─── BOOKMARKS ────────────────────────────────────────────────────────────────
 export const toggleBookmark = async (userId, lessonId, courseId) => {
   const ref  = doc(db, 'bookmarks', `${userId}_${lessonId}`)
@@ -190,7 +202,7 @@ export const getNote = async (userId, lessonId) => {
   return snap.exists() ? snap.data().text : ''
 }
 
-// ─── LAST LESSON (RESUME) ─────────────────────────────────────────────────────
+// ─── LAST LESSON ──────────────────────────────────────────────────────────────
 export const saveLastLesson = (userId, courseId, lessonId) =>
   setDoc(doc(db, 'lastLesson', `${userId}_${courseId}`), {
     userId, courseId, lessonId, updatedAt: serverTimestamp()
@@ -199,6 +211,63 @@ export const saveLastLesson = (userId, courseId, lessonId) =>
 export const getLastLesson = async (userId, courseId) => {
   const snap = await getDoc(doc(db, 'lastLesson', `${userId}_${courseId}`))
   return snap.exists() ? snap.data().lessonId : null
+}
+
+// ─── LOGIN HISTORY ────────────────────────────────────────────────────────────
+export const recordLogin = async (userId, userInfo) => {
+  try {
+    await addDoc(collection(db, 'loginHistory'), {
+      userId,
+      name:    userInfo.name    || '',
+      email:   userInfo.email   || '',
+      loginAt: serverTimestamp(),
+    })
+  } catch (e) {
+    // Never block login due to history save failure
+    console.warn('Login history save failed:', e)
+  }
+}
+
+export const getLoginHistory = async (userId, limitCount = 20) => {
+  const q = query(
+    collection(db, 'loginHistory'),
+    where('userId', '==', userId),
+    orderBy('loginAt', 'desc'),
+    limit(limitCount)
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
+export const getAllLoginHistory = async (limitCount = 50) => {
+  const q = query(
+    collection(db, 'loginHistory'),
+    orderBy('loginAt', 'desc'),
+    limit(limitCount)
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
+// ─── COURSE FEEDBACK ──────────────────────────────────────────────────────────
+export const saveCourseFeedback = (userId, courseId, data) =>
+  setDoc(doc(db, 'courseFeedback', `${userId}_${courseId}`), {
+    userId, courseId, ...data, createdAt: serverTimestamp()
+  })
+
+export const getCourseFeedback = async (userId, courseId) => {
+  const snap = await getDoc(doc(db, 'courseFeedback', `${userId}_${courseId}`))
+  return snap.exists() ? snap.data() : null
+}
+
+export const getCourseFeedbacks = async (courseId) => {
+  const q = query(
+    collection(db, 'courseFeedback'),
+    where('courseId', '==', courseId),
+    orderBy('createdAt', 'desc')
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
 
 // ─── QUESTION BANK ────────────────────────────────────────────────────────────

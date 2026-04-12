@@ -24,6 +24,30 @@
         { "fieldPath": "userId",   "order": "ASCENDING" },
         { "fieldPath": "lessonId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "progress",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "completed",   "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "loginHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "loginAt",   "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "courseFeedback",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "courseId",   "order": "ASCENDING" },
+        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+      ]
     }
   ]
 }
