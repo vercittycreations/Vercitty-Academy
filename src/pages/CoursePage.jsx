@@ -41,6 +41,8 @@ export default function CoursePage() {
   const [showQuiz, setShowQuiz] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
 
   const { lessons, loading: lessonsLoading } = useLessons(courseId)
 
@@ -62,10 +64,20 @@ export default function CoursePage() {
     questions, quizPassed, hasQuiz, quizLoading, submitQuiz, quizResult,
   } = useQuiz(user?.uid, activeLesson?.id, courseId)
 
-  const [showFeedback, setShowFeedback] = useState(false)
-  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  // ── Derived values (computed BEFORE any useEffect that needs them) ─────────
+  // BUG FIX: `percent` was declared after the feedback useEffect that used it
+  // in its dependency array, causing a Temporal Dead Zone ReferenceError.
+  // It must be computed here, before any useEffect that references it.
+  const percent = getPercent(lessons.length)
 
-  // ── Load course ───────────────────────────────────────────────
+  // ── Sequential: first unlocked lesson check ───────────────────────────────
+  const isLessonLocked = useCallback((index) => {
+    if (index === 0) return false
+    const prev = lessons[index - 1]
+    return !completedLessons.includes(prev.id)
+  }, [lessons, completedLessons])
+
+  // ── Load course ───────────────────────────────────────────────────────────
   useEffect(() => {
     getCourse(courseId).then(data => {
       setCourse(data)
@@ -73,20 +85,11 @@ export default function CoursePage() {
     })
   }, [courseId])
 
-  // ── Sequential: first unlocked lesson select ──────────────────
-  // A lesson is unlocked if index=0 OR previous lesson is completed
-  const isLessonLocked = useCallback((index) => {
-    if (index === 0) return false
-    const prev = lessons[index - 1]
-    return !completedLessons.includes(prev.id)
-  }, [lessons, completedLessons])
-
-  // Show feedback modal when course completes (once)
+  // ── Show feedback modal when course completes (once) ──────────────────────
   useEffect(() => {
     if (percent !== 100 || feedbackSubmitted || !user || !courseId) return
     getCourseFeedback(user.uid, courseId).then(existing => {
       if (!existing) {
-        // Small delay so completion toast shows first
         setTimeout(() => setShowFeedback(true), 2000)
       } else {
         setFeedbackSubmitted(true)
@@ -94,7 +97,7 @@ export default function CoursePage() {
     })
   }, [percent, user, courseId, feedbackSubmitted])
 
-  // ── Auto-select: resume or first unlocked ─────────────────────
+  // ── Auto-select: resume or first unlocked ─────────────────────────────────
   useEffect(() => {
     if (lessons.length === 0 || activeLesson) return
     const resume = async () => {
@@ -114,37 +117,35 @@ export default function CoursePage() {
     resume()
   }, [lessons, completedLessons])
 
-  // ── Save last lesson ──────────────────────────────────────────
+  // ── Save last lesson ──────────────────────────────────────────────────────
   useEffect(() => {
     if (activeLesson?.id) saveLastLesson(activeLesson.id)
   }, [activeLesson?.id])
 
-  // ── Close quiz on lesson change ───────────────────────────────
+  // ── Close quiz on lesson change ───────────────────────────────────────────
   useEffect(() => {
     setShowQuiz(false)
   }, [activeLesson?.id])
 
-  // ── Toast on completion ───────────────────────────────────────
+  // ── Toast on completion ───────────────────────────────────────────────────
   useEffect(() => {
     if (!justCompleted) return
     const lesson = lessons.find(l => l.id === justCompleted)
-
-    // Check if next lesson is now unlocked
     const currentIdx = lessons.findIndex(l => l.id === justCompleted)
     const nextLesson = lessons[currentIdx + 1]
     const msg = nextLesson
       ? `"${lesson?.title}" complete! "${nextLesson.title}" unlocked.`
       : `"${lesson?.title}" complete! Course finished! 🎓`
-
     setToast({ show: true, message: msg, type: 'success' })
   }, [justCompleted])
+
   const handleFeedbackSubmit = async (data) => {
     await saveCourseFeedback(user.uid, courseId, data)
     setFeedbackSubmitted(true)
     setShowFeedback(false)
     setToast({ show: true, message: 'Thank you for your feedback!', type: 'success' })
   }
-  const percent = getPercent(lessons.length)
+
   const currentIndex = lessons.findIndex(l => l.id === activeLesson?.id)
   const lessonDone = activeLesson ? isCompleted(activeLesson.id) : false
   const lessonBm = activeLesson ? isBookmarked(activeLesson.id) : false
@@ -177,7 +178,6 @@ export default function CoursePage() {
     setMarking(true)
     await markComplete(activeLesson.id)
     setMarking(false)
-    // Auto-advance to next unlocked lesson
     const nextIdx = currentIndex + 1
     if (nextIdx < lessons.length && !isLessonLocked(nextIdx)) {
       setTimeout(() => setActiveLesson(lessons[nextIdx]), 800)
@@ -335,7 +335,6 @@ export default function CoursePage() {
                     <button
                       onClick={() => {
                         if (!nextLesson) return
-                        // Check if current is done before allowing next
                         if (!lessonDone) {
                           setToast({
                             show: true,
@@ -509,7 +508,6 @@ export default function CoursePage() {
                                   : 'Auto-saves as you type'
                               }
                             </span>
-                            {/* Download notes button */}
                             <button
                               onClick={handleDownloadNotes}
                               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg
@@ -594,7 +592,6 @@ export default function CoursePage() {
                                     : 'bg-dark-900 border-dark-800 hover:border-dark-700 cursor-pointer'
                               }`}
                           >
-                            {/* Icon */}
                             {locked ? (
                               <Lock size={14} className="text-dark-700 shrink-0" />
                             ) : done ? (
@@ -609,7 +606,6 @@ export default function CoursePage() {
                               </div>
                             )}
 
-                            {/* Title */}
                             <span className={`flex-1 text-sm font-body truncate
                                               ${locked
                                 ? 'text-dark-700'
@@ -622,7 +618,6 @@ export default function CoursePage() {
                               {lesson.title}
                             </span>
 
-                            {/* Right badges */}
                             <div className="flex items-center gap-1.5 shrink-0">
                               {isBookmarked(lesson.id) && !locked && (
                                 <Bookmark size={11} className="text-amber-400 fill-amber-400" />
@@ -712,6 +707,7 @@ export default function CoursePage() {
         type={toast.type}
         onClose={() => setToast(t => ({ ...t, show: false }))}
       />
+
       {showFeedback && (
         <CourseFeedbackModal
           course={course}

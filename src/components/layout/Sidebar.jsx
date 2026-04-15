@@ -44,7 +44,7 @@ export default function Sidebar() {
             <GraduationCap size={18} className="text-white" />
           </div>
           <div>
-            <p className="text-white font-display font-700 text-sm leading-tight">Vercitty</p>
+            <p className="text-white font-display font-700 text-sm leading-tight">EduCrek</p>
             <p className="text-brand-400 font-display text-xs">Academy</p>
           </div>
         </div>

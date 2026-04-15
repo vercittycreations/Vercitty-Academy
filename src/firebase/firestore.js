@@ -6,8 +6,18 @@ import {
 import { db } from './config'
 
 // ─── USERS ────────────────────────────────────────────────────────────────────
+
+/**
+ * BUG FIX: previously was `{ ...data, role: 'user' }` which meant the
+ * hardcoded role ALWAYS overwrote whatever role was passed in (e.g. 'admin').
+ * Now `role: 'user'` is the default that data can override.
+ */
 export const createUserDoc = (uid, data) =>
-  setDoc(doc(db, 'users', uid), { ...data, role: 'user', createdAt: serverTimestamp() })
+  setDoc(doc(db, 'users', uid), {
+    role: 'user',       // default — data spread below can override this
+    ...data,
+    createdAt: serverTimestamp(),
+  })
 
 export const getUserDoc = async (uid) => {
   const snap = await getDoc(doc(db, 'users', uid))
