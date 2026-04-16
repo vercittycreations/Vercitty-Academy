@@ -9,6 +9,14 @@
       ]
     },
     {
+      "collectionGroup": "lessons",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "courseId",   "order": "ASCENDING" },
+        { "fieldPath": "dayNumber",  "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "progress",
       "queryScope": "COLLECTION",
       "fields": [
@@ -37,16 +45,80 @@
       "collectionGroup": "loginHistory",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "userId",    "order": "ASCENDING" },
-        { "fieldPath": "loginAt",   "order": "DESCENDING" }
+        { "fieldPath": "userId",  "order": "ASCENDING" },
+        { "fieldPath": "loginAt", "order": "DESCENDING" }
       ]
     },
     {
       "collectionGroup": "courseFeedback",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "courseId",   "order": "ASCENDING" },
-        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+        { "fieldPath": "courseId",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "batchMembers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",   "order": "ASCENDING" },
+        { "fieldPath": "batchId",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "batchMembers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "batchId",  "order": "ASCENDING" },
+        { "fieldPath": "userId",   "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",      "order": "ASCENDING" },
+        { "fieldPath": "lessonId",    "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",     "order": "ASCENDING" },
+        { "fieldPath": "batchId",    "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "batchId",      "order": "ASCENDING" },
+        { "fieldPath": "submittedAt",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "readingModules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lessonId", "order": "ASCENDING" },
+        { "fieldPath": "order",    "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "readingResponses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",   "order": "ASCENDING" },
+        { "fieldPath": "moduleId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "announcements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "batchId",   "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     }
   ]

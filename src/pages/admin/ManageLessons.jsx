@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Pencil, Trash2,
-  PlayCircle, FileText, Link2, HelpCircle, X
+  PlayCircle, FileText, Link2, HelpCircle, X,
+  BookOpen, ClipboardList
 } from 'lucide-react'
 import PageWrapper   from '../../components/layout/PageWrapper'
 import Modal         from '../../components/admin/Modal'
@@ -14,9 +15,18 @@ import { useLessons } from '../../hooks/useLessons'
 import { createLesson, updateLesson, deleteLesson } from '../../firebase/firestore'
 import { extractYouTubeId } from '../../utils/youtube'
 
+const RESOURCE_TYPES = [
+  { value: 'video',   label: 'Video'   },
+  { value: 'article', label: 'Article' },
+  { value: 'pdf',     label: 'PDF'     },
+  { value: 'github',  label: 'GitHub'  },
+  { value: 'other',   label: 'Other'   },
+]
+
 const EMPTY_FORM = {
   title: '', description: '', youtubeUrl: '',
-  order: 0, resources: [],
+  order: 0, dayNumber: '', resources: [],
+  assignmentTitle: '', assignmentDescription: '',
 }
 
 export default function ManageLessons() {
@@ -42,17 +52,19 @@ export default function ManageLessons() {
 
   const openEdit = (l) => {
     setEditLesson(l)
-    // Migrate old resourceLink to resources array
     let resources = l.resources || []
     if (resources.length === 0 && l.resourceLink) {
-      resources = [{ label: 'Resource', url: l.resourceLink }]
+      resources = [{ label: 'Resource', url: l.resourceLink, type: 'other' }]
     }
     setForm({
-      title:       l.title,
-      description: l.description  || '',
-      youtubeUrl:  l.youtubeUrl   || '',
-      order:       l.order        || 0,
+      title:                 l.title,
+      description:           l.description           || '',
+      youtubeUrl:            l.youtubeUrl            || '',
+      order:                 l.order                 || 0,
+      dayNumber:             l.dayNumber             || '',
       resources,
+      assignmentTitle:       l.assignmentTitle       || '',
+      assignmentDescription: l.assignmentDescription || '',
     })
     setError('')
     setModal(true)
@@ -60,9 +72,8 @@ export default function ManageLessons() {
 
   const closeModal = () => { setModal(false); setError('') }
 
-  // Resource helpers
   const addResource = () =>
-    setForm(f => ({ ...f, resources: [...f.resources, { label: '', url: '' }] }))
+    setForm(f => ({ ...f, resources: [...f.resources, { label: '', url: '', type: 'other' }] }))
 
   const removeResource = (i) =>
     setForm(f => ({ ...f, resources: f.resources.filter((_, idx) => idx !== i) }))
@@ -75,30 +86,36 @@ export default function ManageLessons() {
 
   const handleSave = async () => {
     if (!form.title.trim()) return setError('Lesson title is required.')
+    if (form.dayNumber && (isNaN(form.dayNumber) || form.dayNumber < 1 || form.dayNumber > 30)) {
+      return setError('Day number 1 aur 30 ke beech hona chahiye.')
+    }
     setSaving(true)
     setError('')
     try {
       const validResources = form.resources.filter(r => r.url?.trim())
       const payload = {
         courseId,
-        title:       form.title.trim(),
-        description: form.description.trim(),
-        youtubeUrl:  form.youtubeUrl.trim(),
-        order:       Number(form.order) || lessons.length + 1,
-        resources:   validResources,
-        // backward compat: keep resourceLink as first resource URL
-        resourceLink: validResources[0]?.url || '',
+        title:                 form.title.trim(),
+        description:           form.description.trim(),
+        youtubeUrl:            form.youtubeUrl.trim(),
+        order:                 Number(form.order) || lessons.length + 1,
+        dayNumber:             form.dayNumber ? Number(form.dayNumber) : null,
+        resources:             validResources,
+        resourceLink:          validResources[0]?.url || '',
+        assignmentTitle:       form.assignmentTitle.trim(),
+        assignmentDescription: form.assignmentDescription.trim(),
       }
       if (editLesson) {
         await updateLesson(editLesson.id, payload)
         setLessons(ls =>
           ls.map(l => l.id === editLesson.id ? { ...l, ...payload } : l)
-            .sort((a, b) => a.order - b.order)
+            .sort((a, b) => (a.dayNumber || a.order) - (b.dayNumber || b.order))
         )
       } else {
         const ref = await createLesson(payload)
         setLessons(ls =>
-          [...ls, { id: ref.id, ...payload }].sort((a, b) => a.order - b.order)
+          [...ls, { id: ref.id, ...payload }]
+            .sort((a, b) => (a.dayNumber || a.order) - (b.dayNumber || b.order))
         )
       }
       closeModal()
@@ -134,7 +151,7 @@ export default function ManageLessons() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="page-title">Manage Lessons</h1>
-          <p className="text-dark-400 text-sm mt-1">Add lessons, resources, and quizzes.</p>
+          <p className="text-dark-400 text-sm mt-1">Lessons, resources, quizzes aur assignments manage karo.</p>
         </div>
         <button onClick={openCreate} className="btn-primary shrink-0">
           <Plus size={16} /> Add Lesson
@@ -157,7 +174,7 @@ export default function ManageLessons() {
             const resources = lesson.resources?.length > 0
               ? lesson.resources
               : lesson.resourceLink
-                ? [{ label: 'Resource', url: lesson.resourceLink }]
+                ? [{ label: 'Resource', url: lesson.resourceLink, type: 'other' }]
                 : []
 
             return (
@@ -166,6 +183,16 @@ export default function ManageLessons() {
                 <div className="w-8 h-8 rounded-lg bg-dark-800 flex items-center justify-center shrink-0">
                   <span className="text-xs font-display font-700 text-dark-400">{lesson.order || i + 1}</span>
                 </div>
+
+                {lesson.dayNumber && (
+                  <div className="w-14 h-8 rounded-lg bg-brand-600/15 border border-brand-600/25
+                                  flex items-center justify-center shrink-0">
+                    <span className="text-xs font-display font-700 text-brand-400">
+                      Day {lesson.dayNumber}
+                    </span>
+                  </div>
+                )}
+
                 <div className="w-24 h-14 rounded-lg overflow-hidden bg-dark-800 shrink-0">
                   {thumb
                     ? <img src={thumb} alt="" className="w-full h-full object-cover" />
@@ -174,6 +201,7 @@ export default function ManageLessons() {
                       </div>
                   }
                 </div>
+
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-display font-600 text-sm truncate">{lesson.title}</p>
                   {lesson.description && (
@@ -190,8 +218,14 @@ export default function ManageLessons() {
                         <FileText size={9} /> {resources.length} resource{resources.length !== 1 ? 's' : ''}
                       </span>
                     )}
+                    {lesson.assignmentTitle && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-purple-400">
+                        <ClipboardList size={9} /> Assignment
+                      </span>
+                    )}
                   </div>
                 </div>
+
                 <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                   <button
                     onClick={() => setQuizLesson(lesson)}
@@ -214,7 +248,6 @@ export default function ManageLessons() {
         </div>
       )}
 
-      {/* Modal */}
       <Modal open={modal} onClose={closeModal}
              title={editLesson ? 'Edit Lesson' : 'Add New Lesson'}
              width="max-w-xl">
@@ -225,11 +258,20 @@ export default function ManageLessons() {
             </div>
           )}
 
-          <div>
-            <label className="label">Lesson Title</label>
-            <input type="text" className="input" placeholder="e.g. Introduction to HTML"
-              value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Lesson Title</label>
+              <input type="text" className="input" placeholder="e.g. Introduction to HTML"
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Day Number (1–30)</label>
+              <input type="number" min="1" max="30" className="input"
+                placeholder="e.g. 1"
+                value={form.dayNumber}
+                onChange={e => setForm(f => ({ ...f, dayNumber: e.target.value }))} />
+            </div>
           </div>
 
           <div>
@@ -258,17 +300,43 @@ export default function ManageLessons() {
             )}
           </div>
 
-          {/* Multiple Resources */}
+          <div className="h-px bg-dark-800" />
+          <div>
+            <label className="label flex items-center gap-2">
+              <ClipboardList size={12} className="text-purple-400" />
+              Assignment
+            </label>
+            <input type="text" className="input mb-2"
+              placeholder="Assignment title (e.g. Build a navbar)"
+              value={form.assignmentTitle}
+              onChange={e => setForm(f => ({ ...f, assignmentTitle: e.target.value }))} />
+            <textarea rows={3} className="input resize-none"
+              placeholder="Full assignment description — what students need to do..."
+              value={form.assignmentDescription}
+              onChange={e => setForm(f => ({ ...f, assignmentDescription: e.target.value }))} />
+          </div>
+
+          <div className="h-px bg-dark-800" />
           <div>
             <label className="label">Resources</label>
             <div className="space-y-2 mb-2">
               {form.resources.map((r, i) => (
                 <div key={i} className="flex items-center gap-2">
+                  <select
+                    className="input shrink-0"
+                    style={{ width: '110px' }}
+                    value={r.type || 'other'}
+                    onChange={e => updateResource(i, 'type', e.target.value)}
+                  >
+                    {RESOURCE_TYPES.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
                   <input
                     type="text"
-                    className="input"
-                    style={{ width: '130px', flexShrink: 0 }}
-                    placeholder="Label (e.g. Slides)"
+                    className="input shrink-0"
+                    style={{ width: '110px' }}
+                    placeholder="Label"
                     value={r.label}
                     onChange={e => updateResource(i, 'label', e.target.value)}
                   />
@@ -277,7 +345,7 @@ export default function ManageLessons() {
                     <input
                       type="url"
                       className="input pl-8 w-full"
-                      placeholder="https://drive.google.com/..."
+                      placeholder="https://..."
                       value={r.url}
                       onChange={e => updateResource(i, 'url', e.target.value)}
                     />
@@ -296,9 +364,6 @@ export default function ManageLessons() {
             <button onClick={addResource} className="btn-secondary text-xs">
               <Plus size={12} /> Add Resource
             </button>
-            <p className="text-xs text-dark-600 mt-1.5">
-              Add Google Drive, PDF, or any download links for this lesson.
-            </p>
           </div>
 
           <div>

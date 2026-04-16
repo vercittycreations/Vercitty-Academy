@@ -3,25 +3,30 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, BookOpen, Users, GraduationCap,
   UserCheck, LogOut, Shield, Menu, X,
-  HelpCircle, TrendingUp, Download, Activity, Clock
+  HelpCircle, TrendingUp, Download, Activity, Clock,
+  Layers, Megaphone, ClipboardList, Calendar
 } from 'lucide-react'
 import { useAuth }    from '../../context/AuthContext'
 import { logoutUser } from '../../firebase/auth'
 
 const adminLinks = [
-  { to: '/admin',           icon: LayoutDashboard, label: 'Overview'       },
-  { to: '/admin/users',     icon: Users,           label: 'Users'          },
-  { to: '/admin/courses',   icon: BookOpen,        label: 'Courses'        },
-  { to: '/admin/assign',    icon: UserCheck,       label: 'Assign Courses' },
-  { to: '/admin/questions', icon: HelpCircle,      label: 'Question Bank'  },
-  { to: '/admin/progress',  icon: TrendingUp,      label: 'Progress'       },
-  { to: '/admin/activity',  icon: Activity,        label: 'Activity Feed'  },
-  { to: '/admin/logins',    icon: Clock,           label: 'Login History'  },
+  { to: '/admin',                label: 'Overview',       icon: LayoutDashboard },
+  { to: '/admin/users',          label: 'Users',          icon: Users           },
+  { to: '/admin/courses',        label: 'Courses',        icon: BookOpen        },
+  { to: '/admin/batches',        label: 'Batches',        icon: Calendar        },
+  { to: '/admin/assign',         label: 'Assign Courses', icon: UserCheck       },
+  { to: '/admin/announcements',  label: 'Announcements',  icon: Megaphone       },
+  { to: '/admin/submissions',    label: 'Submissions',    icon: ClipboardList   },
+  { to: '/admin/questions',      label: 'Question Bank',  icon: HelpCircle      },
+  { to: '/admin/progress',       label: 'Progress',       icon: TrendingUp      },
+  { to: '/admin/activity',       label: 'Activity Feed',  icon: Activity        },
+  { to: '/admin/logins',         label: 'Login History',  icon: Clock           },
 ]
 
 const userLinks = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'       },
-  { to: '/report',    icon: Download,        label: 'Progress Report' },
+  { to: '/dashboard',   label: 'Dashboard',       icon: LayoutDashboard },
+  { to: '/assignments', label: 'Assignments',      icon: ClipboardList   },
+  { to: '/report',      label: 'Progress Report',  icon: Download        },
 ]
 
 export default function Sidebar() {
@@ -37,7 +42,6 @@ export default function Sidebar() {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
       <div className="px-6 py-6 border-b border-dark-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center">
@@ -56,7 +60,6 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {isAdmin && (
           <p className="px-4 mb-2 text-xs font-display font-600 text-dark-500 uppercase tracking-widest">
@@ -77,7 +80,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
       <div className="px-3 py-4 border-t border-dark-800 space-y-1">
         {isAdmin && (
           <div className="px-4 py-2 flex items-center gap-2 mb-1">
@@ -112,13 +114,11 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Desktop */}
       <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 bg-dark-900
                         border-r border-dark-800 flex-col z-40">
         <SidebarContent />
       </aside>
 
-      {/* Mobile button */}
       <button
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-50 w-10 h-10 bg-dark-900 border border-dark-700
@@ -128,7 +128,6 @@ export default function Sidebar() {
         <Menu size={18} />
       </button>
 
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div

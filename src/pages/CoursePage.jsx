@@ -4,7 +4,8 @@ import {
   ArrowLeft, CheckCircle, BookOpen,
   ChevronLeft, ChevronRight, Menu, X,
   Layers, Trophy, Bookmark, FileText,
-  HelpCircle, Lock, Download
+  HelpCircle, Lock, Download, Calendar,
+  ClipboardList
 } from 'lucide-react'
 import CourseFeedbackModal from '../components/course/CourseFeedbackModal'
 import { saveCourseFeedback, getCourseFeedback } from '../firebase/firestore'
@@ -16,6 +17,7 @@ import ProgressBar from '../components/ui/ProgressBar'
 import ProgressRing from '../components/ui/ProgressRing'
 import ProgressToast from '../components/progress/ProgressToast'
 import QuizModal from '../components/course/QuizModal'
+import BatchCalendar from '../components/batch/BatchCalendar'
 import Spinner from '../components/ui/Spinner'
 import EmptyState from '../components/ui/EmptyState'
 import { useAuth } from '../context/AuthContext'
@@ -25,24 +27,25 @@ import { useBookmarks } from '../hooks/useBookmarks'
 import { useNotes } from '../hooks/useNotes'
 import { useLastLesson } from '../hooks/useLastLesson'
 import { useQuiz } from '../hooks/useQuiz'
+import { useBatch } from '../hooks/useBatch'
 import { getCourse } from '../firebase/firestore'
 import { downloadNotes } from '../utils/notes'
+import CertificateButton from '../components/batch/CertificateButton'
 
 export default function CoursePage() {
   const { courseId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
 
-  const [course, setCourse] = useState(null)
+  const [course, setCourse]         = useState(null)
   const [courseLoading, setCourseLoading] = useState(true)
-  const [activeLesson, setActiveLesson] = useState(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [marking, setMarking] = useState(false)
-  const [showQuiz, setShowQuiz] = useState(false)
-  const [showNotes, setShowNotes] = useState(false)
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
-  const [showFeedback, setShowFeedback] = useState(false)
-  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const [activeLesson, setActiveLesson]   = useState(null)
+  const [sidebarOpen, setSidebarOpen]     = useState(false)
+  const [showCalendar, setShowCalendar]   = useState(false)
+  const [marking, setMarking]             = useState(false)
+  const [showQuiz, setShowQuiz]           = useState(false)
+  const [showNotes, setShowNotes]         = useState(false)
+  const [toast, setToast]                 = useState({ show: false, message: '', type: 'success' })
 
   const { lessons, loading: lessonsLoading } = useLessons(courseId)
 
@@ -57,27 +60,21 @@ export default function CoursePage() {
     text: noteText, handleChange: handleNoteChange,
     saving: noteSaving, saved: noteSaved,
   } = useNotes(user?.uid, activeLesson?.id)
-
+ const percent       = getPercent(lessons.length)
   const { save: saveLastLesson, getLast } = useLastLesson(user?.uid, courseId)
 
   const {
     questions, quizPassed, hasQuiz, quizLoading, submitQuiz, quizResult,
   } = useQuiz(user?.uid, activeLesson?.id, courseId)
 
-  // ── Derived values (computed BEFORE any useEffect that needs them) ─────────
-  // BUG FIX: `percent` was declared after the feedback useEffect that used it
-  // in its dependency array, causing a Temporal Dead Zone ReferenceError.
-  // It must be computed here, before any useEffect that references it.
-  const percent = getPercent(lessons.length)
+  const {
+    batch, currentDay, isLessonUnlocked,
+    certificateStatus, daysRemaining,
+  } = useBatch(user?.uid)
 
-  // ── Sequential: first unlocked lesson check ───────────────────────────────
-  const isLessonLocked = useCallback((index) => {
-    if (index === 0) return false
-    const prev = lessons[index - 1]
-    return !completedLessons.includes(prev.id)
-  }, [lessons, completedLessons])
+  const [showFeedback, setShowFeedback]         = useState(false)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
 
-  // ── Load course ───────────────────────────────────────────────────────────
   useEffect(() => {
     getCourse(courseId).then(data => {
       setCourse(data)
@@ -85,7 +82,20 @@ export default function CoursePage() {
     })
   }, [courseId])
 
-  // ── Show feedback modal when course completes (once) ──────────────────────
+  // Batch-aware locking: use dayNumber if available, else fall back to sequential
+  const isLessonLocked = useCallback((index) => {
+    const lesson = lessons[index]
+    if (!lesson) return true
+    // If lesson has dayNumber AND user has a batch — use day-based locking
+    if (lesson.dayNumber && batch) {
+      return !isLessonUnlocked(lesson.dayNumber)
+    }
+    // Fallback: sequential (previous lesson must be completed)
+    if (index === 0) return false
+    const prev = lessons[index - 1]
+    return !completedLessons.includes(prev.id)
+  }, [lessons, completedLessons, batch, isLessonUnlocked])
+
   useEffect(() => {
     if (percent !== 100 || feedbackSubmitted || !user || !courseId) return
     getCourseFeedback(user.uid, courseId).then(existing => {
@@ -97,40 +107,33 @@ export default function CoursePage() {
     })
   }, [percent, user, courseId, feedbackSubmitted])
 
-  // ── Auto-select: resume or first unlocked ─────────────────────────────────
   useEffect(() => {
     if (lessons.length === 0 || activeLesson) return
     const resume = async () => {
       const lastId = await getLast()
       if (lastId) {
-        const found = lessons.find(l => l.id === lastId)
+        const found      = lessons.find(l => l.id === lastId)
         const foundIndex = lessons.findIndex(l => l.id === lastId)
         if (found && !isLessonLocked(foundIndex)) {
           setActiveLesson(found)
           return
         }
       }
-      // First incomplete unlocked lesson
       const firstUnlocked = lessons.find((l, i) => !isLessonLocked(i) && !completedLessons.includes(l.id))
       setActiveLesson(firstUnlocked || lessons[0])
     }
     resume()
   }, [lessons, completedLessons])
 
-  // ── Save last lesson ──────────────────────────────────────────────────────
   useEffect(() => {
     if (activeLesson?.id) saveLastLesson(activeLesson.id)
   }, [activeLesson?.id])
 
-  // ── Close quiz on lesson change ───────────────────────────────────────────
-  useEffect(() => {
-    setShowQuiz(false)
-  }, [activeLesson?.id])
+  useEffect(() => { setShowQuiz(false) }, [activeLesson?.id])
 
-  // ── Toast on completion ───────────────────────────────────────────────────
   useEffect(() => {
     if (!justCompleted) return
-    const lesson = lessons.find(l => l.id === justCompleted)
+    const lesson     = lessons.find(l => l.id === justCompleted)
     const currentIdx = lessons.findIndex(l => l.id === justCompleted)
     const nextLesson = lessons[currentIdx + 1]
     const msg = nextLesson
@@ -146,11 +149,11 @@ export default function CoursePage() {
     setToast({ show: true, message: 'Thank you for your feedback!', type: 'success' })
   }
 
-  const currentIndex = lessons.findIndex(l => l.id === activeLesson?.id)
-  const lessonDone = activeLesson ? isCompleted(activeLesson.id) : false
-  const lessonBm = activeLesson ? isBookmarked(activeLesson.id) : false
+ 
+  const currentIndex  = lessons.findIndex(l => l.id === activeLesson?.id)
+  const lessonDone    = activeLesson ? isCompleted(activeLesson.id) : false
+  const lessonBm      = activeLesson ? isBookmarked(activeLesson.id) : false
 
-  // Prev/Next — only allow navigating to unlocked lessons
   const prevLesson = (() => {
     for (let i = currentIndex - 1; i >= 0; i--) {
       if (!isLessonLocked(i)) return lessons[i]
@@ -166,11 +169,10 @@ export default function CoursePage() {
   })()
 
   const handleLockedClick = () => {
-    setToast({
-      show: true,
-      message: 'Complete the previous lesson first to unlock this one.',
-      type: 'warning',
-    })
+    const msg = batch
+      ? `Yeh lesson Day ${activeLesson?.dayNumber || '?'} pe unlock hoga.`
+      : 'Complete the previous lesson first to unlock this one.'
+    setToast({ show: true, message: msg, type: 'warning' })
   }
 
   const handleMarkComplete = async () => {
@@ -245,7 +247,7 @@ export default function CoursePage() {
 
       <div className="flex-1 lg:ml-64 flex flex-col min-h-screen overflow-hidden">
 
-        {/* ── Top bar ───────────────────────────────────────────── */}
+        {/* ── Top bar ─────────────────────────────────────────────── */}
         <div className="sticky top-0 z-30 bg-dark-950/95 backdrop-blur-md border-b border-dark-800
                         px-4 sm:px-6 py-3.5">
           <div className="flex items-center gap-3 sm:gap-4">
@@ -286,11 +288,23 @@ export default function CoursePage() {
                                   ${percent === 100 ? 'text-emerald-400' : 'text-brand-400'}`}>
                   {percent}%
                 </span>
-                <span className="text-xs text-dark-600 whitespace-nowrap hidden sm:inline">
-                  {completedLessons.length}/{lessons.length}
-                </span>
+                {batch && (
+                  <span className="text-xs text-dark-500 whitespace-nowrap hidden sm:inline">
+                    Day {currentDay}/30
+                  </span>
+                )}
               </div>
             </div>
+
+            {batch && (
+              <button
+                onClick={() => setShowCalendar(c => !c)}
+                className={`btn-secondary px-2.5 py-2 shrink-0 ${showCalendar ? 'border-brand-600/40 text-brand-400' : ''}`}
+                title="30-day calendar"
+              >
+                <Calendar size={15} />
+              </button>
+            )}
 
             <div className="hidden md:block shrink-0">
               <ProgressRing percent={percent} size={44} stroke={3} />
@@ -305,10 +319,23 @@ export default function CoursePage() {
           </div>
         </div>
 
-        {/* ── Body ─────────────────────────────────────────────── */}
+        {/* ── Body ──────────────────────────────────────────────────── */}
         <div className="flex flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+
+              {/* Calendar panel */}
+              {showCalendar && batch && (
+                <BatchCalendar
+                  currentDay={currentDay}
+                  completedLessons={completedLessons}
+                  lessons={lessons}
+                  onDayClick={(lesson) => {
+                    setActiveLesson(lesson)
+                    setShowCalendar(false)
+                  }}
+                />
+              )}
 
               {lessons.length === 0 ? (
                 <EmptyState icon={Layers} title="No lessons yet" description="Check back later." />
@@ -316,7 +343,6 @@ export default function CoursePage() {
                 <Spinner text="Loading lesson..." />
               ) : (
                 <>
-                  {/* Video */}
                   <VideoPlayer youtubeUrl={activeLesson.youtubeUrl} title={activeLesson.title} />
 
                   {/* Prev / Next */}
@@ -353,12 +379,11 @@ export default function CoursePage() {
                     </button>
                   </div>
 
-                  {/* ── Lesson info card ─────────────────────────── */}
+                  {/* ── Lesson info card ─────────────────────────────── */}
                   <div className="card p-4 sm:p-6">
-                    {/* Badges row */}
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span className="badge bg-brand-600/15 text-brand-400 border border-brand-600/20 text-xs">
-                        Lesson {currentIndex + 1}
+                        {activeLesson.dayNumber ? `Day ${activeLesson.dayNumber}` : `Lesson ${currentIndex + 1}`}
                       </span>
                       {lessonDone && (
                         <span className="badge bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 text-xs">
@@ -387,7 +412,31 @@ export default function CoursePage() {
                       </p>
                     )}
 
-                    {/* Failed quiz hint */}
+                    {/* Assignment for this lesson */}
+                    {activeLesson.assignmentTitle && (
+                      <div className="mt-4 flex items-start gap-3 px-4 py-3 rounded-xl
+                                      bg-purple-500/8 border border-purple-500/15">
+                        <ClipboardList size={16} className="text-purple-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-display font-600 text-purple-300">
+                            Assignment: {activeLesson.assignmentTitle}
+                          </p>
+                          {activeLesson.assignmentDescription && (
+                            <p className="text-xs text-purple-400/70 mt-0.5 leading-relaxed">
+                              {activeLesson.assignmentDescription}
+                            </p>
+                          )}
+                          <button
+                            onClick={() => navigate('/assignments')}
+                            className="mt-2 inline-flex items-center gap-1.5 text-xs text-purple-400
+                                       hover:text-purple-300 transition-colors font-display font-600"
+                          >
+                            Submit assignment →
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {hasQuiz && !lessonDone && quizResult && !quizResult.passed && (
                       <div className="mt-4 flex items-start gap-3 px-4 py-3 rounded-xl
                                       bg-amber-500/10 border border-amber-500/20">
@@ -406,11 +455,10 @@ export default function CoursePage() {
 
                     <div className="h-px bg-dark-800 my-5" />
 
-                    {/* ── Action buttons ─────────────────────────── */}
+                    {/* ── Action buttons ──────────────────────────────── */}
                     <div className="flex flex-wrap items-center gap-3">
                       <ResourceButton resourceLink={activeLesson.resourceLink} resources={activeLesson.resources || []} />
 
-                      {/* Bookmark */}
                       <button
                         onClick={() => toggleBookmark(activeLesson.id)}
                         className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm
@@ -424,7 +472,6 @@ export default function CoursePage() {
                         {lessonBm ? 'Saved' : 'Save'}
                       </button>
 
-                      {/* Notes toggle */}
                       <button
                         onClick={() => setShowNotes(n => !n)}
                         className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm
@@ -441,7 +488,6 @@ export default function CoursePage() {
                         )}
                       </button>
 
-                      {/* ── Main CTA ── */}
                       {lessonDone ? (
                         <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg
                                         bg-emerald-500/10 border border-emerald-500/20 text-emerald-400
@@ -491,7 +537,7 @@ export default function CoursePage() {
                       )}
                     </div>
 
-                    {/* ── Notes panel ─────────────────────────────── */}
+                    {/* ── Notes panel ──────────────────────────────────── */}
                     {showNotes && (
                       <div className="mt-5 pt-5 border-t border-dark-800">
                         <div className="flex items-center justify-between mb-3">
@@ -501,12 +547,7 @@ export default function CoursePage() {
                           </h3>
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-dark-500">
-                              {noteSaving
-                                ? 'Saving...'
-                                : noteSaved
-                                  ? '✓ Saved'
-                                  : 'Auto-saves as you type'
-                              }
+                              {noteSaving ? 'Saving...' : noteSaved ? '✓ Saved' : 'Auto-saves as you type'}
                             </span>
                             <button
                               onClick={handleDownloadNotes}
@@ -536,7 +577,7 @@ export default function CoursePage() {
                     )}
                   </div>
 
-                  {/* ── Progress card ────────────────────────────── */}
+                  {/* ── Progress card ─────────────────────────────────── */}
                   <div className="card p-5">
                     <div className="flex items-center justify-between mb-4">
                       <div>
@@ -548,6 +589,18 @@ export default function CoursePage() {
                       <ProgressRing percent={percent} size={52} stroke={4} />
                     </div>
                     <ProgressBar percent={percent} size="lg" color={percent === 100 ? 'emerald' : 'brand'} />
+
+                    {/* Certificate button */}
+                    <div className="mt-4">
+                      <CertificateButton
+                        status={certificateStatus}
+                        currentDay={currentDay}
+                        studentName={user?.displayName || ''}
+                        courseName={course?.title || ''}
+                        batchName={batch?.name || ''}
+                      />
+                    </div>
+
                     {percent === 100 && (
                       <div className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl
                                       bg-emerald-500/10 border border-emerald-500/20">
@@ -564,7 +617,7 @@ export default function CoursePage() {
                     )}
                   </div>
 
-                  {/* ── Lesson checklist ─────────────────────────── */}
+                  {/* ── Lesson checklist ─────────────────────────────── */}
                   <div className="card p-5">
                     <h3 className="text-sm font-display font-700 text-white mb-4">
                       Lesson Checklist
@@ -572,7 +625,7 @@ export default function CoursePage() {
                     <div className="space-y-2">
                       {lessons.map((lesson, i) => {
                         const locked = isLessonLocked(i)
-                        const done = isCompleted(lesson.id)
+                        const done   = isCompleted(lesson.id)
                         const active = activeLesson?.id === lesson.id
                         return (
                           <button
@@ -605,25 +658,21 @@ export default function CoursePage() {
                                 </span>
                               </div>
                             )}
-
                             <span className={`flex-1 text-sm font-body truncate
                                               ${locked
                                 ? 'text-dark-700'
-                                : active
-                                  ? 'text-white font-500'
-                                  : done
-                                    ? 'text-dark-300'
-                                    : 'text-dark-400'
+                                : active ? 'text-white font-500'
+                                : done ? 'text-dark-300'
+                                : 'text-dark-400'
                               }`}>
                               {lesson.title}
                             </span>
-
                             <div className="flex items-center gap-1.5 shrink-0">
+                              {lesson.dayNumber && (
+                                <span className="text-[10px] text-dark-600">D{lesson.dayNumber}</span>
+                              )}
                               {isBookmarked(lesson.id) && !locked && (
                                 <Bookmark size={11} className="text-amber-400 fill-amber-400" />
-                              )}
-                              {locked && (
-                                <span className="text-[9px] text-dark-700 font-display">Locked</span>
                               )}
                               {active && !locked && (
                                 <span className="badge bg-brand-600/20 text-brand-400
@@ -642,7 +691,7 @@ export default function CoursePage() {
             </div>
           </div>
 
-          {/* ── Desktop playlist ──────────────────────────────────── */}
+          {/* ── Desktop playlist ──────────────────────────────────────── */}
           <div className="hidden lg:flex flex-col w-80 xl:w-96 border-l border-dark-800
                           bg-dark-900/40 overflow-hidden shrink-0">
             <LessonPlaylist
@@ -652,10 +701,12 @@ export default function CoursePage() {
               bookmarkedLessons={bookmarkedLessons}
               onSelect={handleSelectLesson}
               onLockedClick={handleLockedClick}
+              currentDay={currentDay}
+              hasBatch={!!batch}
             />
           </div>
 
-          {/* ── Mobile playlist ───────────────────────────────────── */}
+          {/* ── Mobile playlist ───────────────────────────────────────── */}
           {sidebarOpen && (
             <div className="lg:hidden fixed inset-0 z-50 flex">
               <div
@@ -667,10 +718,7 @@ export default function CoursePage() {
                 <div className="flex items-center justify-between px-4 py-4
                                 border-b border-dark-800 shrink-0">
                   <h3 className="text-sm font-display font-700 text-white">Lessons</h3>
-                  <button
-                    onClick={() => setSidebarOpen(false)}
-                    className="text-dark-400 hover:text-white"
-                  >
+                  <button onClick={() => setSidebarOpen(false)} className="text-dark-400 hover:text-white">
                     <X size={15} />
                   </button>
                 </div>
@@ -681,6 +729,8 @@ export default function CoursePage() {
                   bookmarkedLessons={bookmarkedLessons}
                   onSelect={handleSelectLesson}
                   onLockedClick={handleLockedClick}
+                  currentDay={currentDay}
+                  hasBatch={!!batch}
                 />
               </div>
             </div>
@@ -688,7 +738,6 @@ export default function CoursePage() {
         </div>
       </div>
 
-      {/* Quiz Modal */}
       {showQuiz && activeLesson && questions.length > 0 && (
         <QuizModal
           questions={questions}
@@ -700,7 +749,6 @@ export default function CoursePage() {
         />
       )}
 
-      {/* Toast */}
       <ProgressToast
         show={toast.show}
         message={toast.message}

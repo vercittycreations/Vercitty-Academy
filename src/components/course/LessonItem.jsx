@@ -1,8 +1,14 @@
 import { CheckCircle, PlayCircle, FileText, Bookmark, Lock } from 'lucide-react'
 
 export default function LessonItem({
-  lesson, index, isActive, isCompleted, isBookmarked = false,
-  isLocked = false, onClick
+  lesson,
+  index,
+  isActive,
+  isCompleted,
+  isBookmarked = false,
+  isLocked     = false,
+  dayNumber    = null,
+  onClick,
 }) {
   return (
     <button
@@ -51,9 +57,9 @@ export default function LessonItem({
             {lesson.description}
           </p>
         )}
-        {isLocked && (
+        {isLocked && dayNumber && (
           <p className="text-[10px] text-dark-700 mt-0.5">
-            Complete previous lesson to unlock
+            Unlocks on Day {dayNumber}
           </p>
         )}
         {!isLocked && (
@@ -63,21 +69,30 @@ export default function LessonItem({
                 <PlayCircle size={9} /> Video
               </span>
             )}
-            {lesson.resourceLink && (
+            {(lesson.resources?.length > 0 || lesson.resourceLink) && (
               <span className="inline-flex items-center gap-1 text-[10px] text-dark-500">
-                <FileText size={9} /> Resource
+                <FileText size={9} /> Resources
               </span>
             )}
           </div>
         )}
       </div>
 
-      {/* Bookmark icon */}
-      {isBookmarked && !isLocked && (
-        <Bookmark size={13} className="text-amber-400 fill-amber-400 shrink-0 mt-0.5" />
-      )}
+      {/* Right side */}
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        {/* Day badge */}
+        {dayNumber && !isLocked && (
+          <span className="text-[9px] text-dark-600 font-display font-600">
+            D{dayNumber}
+          </span>
+        )}
+        {/* Bookmark icon */}
+        {isBookmarked && !isLocked && (
+          <Bookmark size={11} className="text-amber-400 fill-amber-400" />
+        )}
+      </div>
 
-      {/* Active indicator */}
+      {/* Active left indicator */}
       {isActive && !isLocked && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-brand-500 rounded-r-full" />
       )}

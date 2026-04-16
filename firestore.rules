@@ -5,6 +5,7 @@ service cloud.firestore {
     function isLoggedIn() {
       return request.auth != null;
     }
+    
     function isAdmin() {
       return isLoggedIn() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
@@ -84,6 +85,45 @@ service cloud.firestore {
       allow update: if isLoggedIn() &&
         resource.data.userId == request.auth.uid;
       allow delete: if isAdmin();
+    }
+
+    // ==========================================
+    // NAYE RULES AAKE ERRORS FIX KARNE KE LIYE
+    // ==========================================
+
+    // Announcements: Admin manage karega, students read karenge
+    match /announcements/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // Batches: Admin manage karega, students read karenge
+    match /batches/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // Batch Members: Admin assign karega
+    match /batchMembers/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // Submissions: Students apne assignments submit karenge, Admin sab dekh/grade kar sakta hai
+    match /submissions/{docId} {
+      // User sirf apni submission dekh sakta hai, Admin sabki
+      allow read: if isLoggedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      // User sirf apne ID se create kar sakta hai
+      allow create: if isLoggedIn() && request.resource.data.userId == request.auth.uid;
+      // User edit kar sakta hai (agar allow karna ho), Admin grade update kar sakta hai
+      allow update: if isLoggedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Reading Modules: Admin manage karega
+    match /readingModules/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
     }
   }
 }

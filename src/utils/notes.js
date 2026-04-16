@@ -13,7 +13,7 @@ export function downloadNotes(text, lessonTitle) {
     text.trim(),
     '',
     '─'.repeat(50),
-    'Vercitty Academy',
+    'EduCrek Academy',
   ].join('\n')
 
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })

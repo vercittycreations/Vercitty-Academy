@@ -63,7 +63,7 @@ export default function Login() {
           <div className="w-16 h-16 rounded-2xl bg-brand-600 flex items-center justify-center mb-5 shadow-lg shadow-brand-600/30">
             <GraduationCap size={32} className="text-white" />
           </div>
-          <h1 className="text-3xl font-display font-700 text-white tracking-tight">Vercitty Academy</h1>
+          <h1 className="text-3xl font-display font-700 text-white tracking-tight">EduCrek Academy</h1>
           <p className="text-dark-400 text-sm font-body mt-1">Private Client Learning Portal</p>
         </div>
 
@@ -117,7 +117,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-dark-600 text-xs mt-6 font-body">
-          © {new Date().getFullYear()} Vercitty Creations. All rights reserved.
+          © {new Date().getFullYear()} EduCrek Creations. All rights reserved.
         </p>
       </div>
     </div>
