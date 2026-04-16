@@ -37,15 +37,15 @@ export default function CoursePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
 
-  const [course, setCourse]         = useState(null)
+  const [course, setCourse] = useState(null)
   const [courseLoading, setCourseLoading] = useState(true)
-  const [activeLesson, setActiveLesson]   = useState(null)
-  const [sidebarOpen, setSidebarOpen]     = useState(false)
-  const [showCalendar, setShowCalendar]   = useState(false)
-  const [marking, setMarking]             = useState(false)
-  const [showQuiz, setShowQuiz]           = useState(false)
-  const [showNotes, setShowNotes]         = useState(false)
-  const [toast, setToast]                 = useState({ show: false, message: '', type: 'success' })
+  const [activeLesson, setActiveLesson] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showCalendar, setShowCalendar] = useState(false)
+  const [marking, setMarking] = useState(false)
+  const [showQuiz, setShowQuiz] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
 
   const { lessons, loading: lessonsLoading } = useLessons(courseId)
 
@@ -60,7 +60,7 @@ export default function CoursePage() {
     text: noteText, handleChange: handleNoteChange,
     saving: noteSaving, saved: noteSaved,
   } = useNotes(user?.uid, activeLesson?.id)
- const percent       = getPercent(lessons.length)
+  const percent = getPercent(lessons.length)
   const { save: saveLastLesson, getLast } = useLastLesson(user?.uid, courseId)
 
   const {
@@ -69,10 +69,10 @@ export default function CoursePage() {
 
   const {
     batch, currentDay, isLessonUnlocked,
-    certificateStatus, daysRemaining,
+    certificateStatus, daysRemaining,totalDays,
   } = useBatch(user?.uid)
 
-  const [showFeedback, setShowFeedback]         = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
 
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function CoursePage() {
     const resume = async () => {
       const lastId = await getLast()
       if (lastId) {
-        const found      = lessons.find(l => l.id === lastId)
+        const found = lessons.find(l => l.id === lastId)
         const foundIndex = lessons.findIndex(l => l.id === lastId)
         if (found && !isLessonLocked(foundIndex)) {
           setActiveLesson(found)
@@ -133,7 +133,7 @@ export default function CoursePage() {
 
   useEffect(() => {
     if (!justCompleted) return
-    const lesson     = lessons.find(l => l.id === justCompleted)
+    const lesson = lessons.find(l => l.id === justCompleted)
     const currentIdx = lessons.findIndex(l => l.id === justCompleted)
     const nextLesson = lessons[currentIdx + 1]
     const msg = nextLesson
@@ -149,10 +149,10 @@ export default function CoursePage() {
     setToast({ show: true, message: 'Thank you for your feedback!', type: 'success' })
   }
 
- 
-  const currentIndex  = lessons.findIndex(l => l.id === activeLesson?.id)
-  const lessonDone    = activeLesson ? isCompleted(activeLesson.id) : false
-  const lessonBm      = activeLesson ? isBookmarked(activeLesson.id) : false
+
+  const currentIndex = lessons.findIndex(l => l.id === activeLesson?.id)
+  const lessonDone = activeLesson ? isCompleted(activeLesson.id) : false
+  const lessonBm = activeLesson ? isBookmarked(activeLesson.id) : false
 
   const prevLesson = (() => {
     for (let i = currentIndex - 1; i >= 0; i--) {
@@ -595,6 +595,10 @@ export default function CoursePage() {
                       <CertificateButton
                         status={certificateStatus}
                         currentDay={currentDay}
+                        totalDays={totalDays}        // ✅ added
+                        batchId={batch?.id || ''}    // ✅ added
+                        userId={user?.uid || ''}     // ✅ added
+
                         studentName={user?.displayName || ''}
                         courseName={course?.title || ''}
                         batchName={batch?.name || ''}
@@ -625,7 +629,7 @@ export default function CoursePage() {
                     <div className="space-y-2">
                       {lessons.map((lesson, i) => {
                         const locked = isLessonLocked(i)
-                        const done   = isCompleted(lesson.id)
+                        const done = isCompleted(lesson.id)
                         const active = activeLesson?.id === lesson.id
                         return (
                           <button
@@ -662,8 +666,8 @@ export default function CoursePage() {
                                               ${locked
                                 ? 'text-dark-700'
                                 : active ? 'text-white font-500'
-                                : done ? 'text-dark-300'
-                                : 'text-dark-400'
+                                  : done ? 'text-dark-300'
+                                    : 'text-dark-400'
                               }`}>
                               {lesson.title}
                             </span>
