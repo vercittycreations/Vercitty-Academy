@@ -3,9 +3,9 @@ import { Award, Lock, ExternalLink, Clock } from 'lucide-react'
 import { getCertificateLink } from '../../firebase/firestore.batches'
 
 export default function CertificateButton({
-  status,       // 'no-batch' | 'locked' | 'available' | 'expired'
+  status,           // 'no-batch' | 'locked' | 'available' | 'expired'
   currentDay  = 0,
-  totalDays   = 30,
+  totalDays   = 0,  // real batch totalDays — NOT hardcoded 30
   batchId     = '',
   userId      = '',
 }) {
@@ -25,18 +25,33 @@ export default function CertificateButton({
 
   if (status === 'locked') {
     const daysLeft = Math.max(0, totalDays - currentDay)
+    const pct      = totalDays > 0 ? Math.round((currentDay / totalDays) * 100) : 0
     return (
       <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-dark-800 border border-dark-700">
-        <Lock size={16} className="text-dark-600 shrink-0"/>
-        <div>
-          <p className="text-sm font-display font-600 text-dark-400">Certificate</p>
+        <div className="w-9 h-9 rounded-lg bg-dark-700 flex items-center justify-center shrink-0">
+          <Lock size={15} className="text-dark-600"/>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-display font-600 text-dark-400">
+            Certificate — Day {totalDays}
+          </p>
           <p className="text-xs text-dark-600 mt-0.5">
             {daysLeft > 0
               ? `${daysLeft} more day${daysLeft !== 1 ? 's' : ''} remaining`
               : 'Almost there!'
             }
           </p>
+          {/* Mini progress */}
+          <div className="mt-1.5 h-1 bg-dark-900 rounded-full overflow-hidden w-full">
+            <div
+              className="h-full bg-brand-600/40 rounded-full transition-all duration-700"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
         </div>
+        <span className="text-xs font-display font-700 text-dark-600 shrink-0">
+          {currentDay}/{totalDays}
+        </span>
       </div>
     )
   }
@@ -65,12 +80,12 @@ export default function CertificateButton({
 
   if (!driveLink) {
     return (
-      <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-dark-800 border border-dark-700">
-        <Award size={16} className="text-dark-500 shrink-0"/>
+      <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/8 border border-amber-500/15">
+        <Award size={16} className="text-amber-500 shrink-0"/>
         <div>
-          <p className="text-sm font-display font-600 text-dark-400">Certificate</p>
-          <p className="text-xs text-dark-600 mt-0.5">
-            Wait For Approval Your Certificate will Uploaded Soon!!
+          <p className="text-sm font-display font-600 text-amber-400">Certificate Ready!</p>
+          <p className="text-xs text-amber-600 mt-0.5">
+            Admin upload kar raha hai — thoda wait karo.
           </p>
         </div>
       </div>

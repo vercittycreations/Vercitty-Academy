@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import LessonItem   from './LessonItem'
 import BatchCalendar from '../batch/BatchCalendar'
-import { ListVideo, Search, Bookmark, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
+import { ListVideo, Search, Bookmark, Calendar, ChevronDown, ChevronUp, Lock } from 'lucide-react'
 
 export default function LessonPlaylist({
   lessons,
@@ -16,7 +16,7 @@ export default function LessonPlaylist({
 }) {
   const [query,         setQuery]         = useState('')
   const [showBookmarks, setShowBookmarks] = useState(false)
-  const [showCalendar,  setShowCalendar]  = useState(true)
+  const [showCalendar,  setShowCalendar]  = useState(false)
 
   if (!lessons || lessons.length === 0) {
     return (
@@ -31,7 +31,7 @@ export default function LessonPlaylist({
   const totalCount     = lessons.length
   const percent        = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
-  // Lock logic
+  // Lock logic — strict: only currentDay unlocked for batch users
   const isLocked = (index) => {
     const lesson = lessons[index]
     if (!lesson) return true
@@ -40,36 +40,24 @@ export default function LessonPlaylist({
     return !completedLessons.includes(lessons[index - 1].id)
   }
 
-  // Group by dayNumber for display
   const hasDayNumbers = lessons.some(l => l.dayNumber)
 
-  // Filter
-  const filteredLessons = lessons.filter(l => {
+  // KEY FIX: When batch + dayNumbers exist, sidebar shows ONLY today's lessons
+  const sidebarLessons = (hasBatch && hasDayNumbers)
+    ? lessons.filter(l => l.dayNumber === currentDay)
+    : lessons
+
+  // Filter by search / bookmarks
+  const filteredLessons = sidebarLessons.filter(l => {
     const matchSearch = l.title.toLowerCase().includes(query.toLowerCase())
     const matchBm     = showBookmarks ? bookmarkedLessons.includes(l.id) : true
     return matchSearch && matchBm
   })
 
-  // Build day groups if dayNumbers exist
-  const buildDayGroups = () => {
-    const groups = {}
-    filteredLessons.forEach(lesson => {
-      const d = lesson.dayNumber || 0
-      if (!groups[d]) groups[d] = []
-      groups[d].push(lesson)
-    })
-    return groups
-  }
-
-  const dayGroups = hasDayNumbers ? buildDayGroups() : null
-  const groupKeys = dayGroups
-    ? Object.keys(dayGroups).map(Number).sort((a, b) => a - b)
-    : null
-
   return (
     <div className="flex flex-col h-full">
 
-      {/* ── Calendar (collapsible, top) ───────────── */}
+      {/* Calendar toggle */}
       {hasBatch && currentDay > 0 && (
         <div className="border-b border-dark-800">
           <button
@@ -99,14 +87,20 @@ export default function LessonPlaylist({
         </div>
       )}
 
-      {/* ── Header ────────────────────────────────── */}
+      {/* Header */}
       <div className="px-4 py-3 border-b border-dark-800 space-y-2.5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-display font-700 text-white">Lessons</h3>
+          <div>
+            <h3 className="text-sm font-display font-700 text-white">
+              {hasBatch && hasDayNumbers ? `Day ${currentDay} Lessons` : 'Lessons'}
+            </h3>
+            {hasBatch && hasDayNumbers && (
+              <p className="text-[10px] text-dark-500 mt-0.5">Only today's content shown</p>
+            )}
+          </div>
           <span className="text-xs text-dark-400">{completedCount}/{totalCount}</span>
         </div>
 
-        {/* Progress bar */}
         <div className="w-full h-1 bg-dark-800 rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full transition-all duration-700"
@@ -114,7 +108,6 @@ export default function LessonPlaylist({
           />
         </div>
 
-        {/* Search */}
         <div className="relative">
           <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500 pointer-events-none"/>
           <input
@@ -128,7 +121,6 @@ export default function LessonPlaylist({
           />
         </div>
 
-        {/* Bookmark filter */}
         <button
           onClick={() => setShowBookmarks(b => !b)}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-display
@@ -148,12 +140,18 @@ export default function LessonPlaylist({
         </button>
       </div>
 
-      {/* ── Lesson list ───────────────────────────── */}
+      {/* Lesson list — only today's for batch users */}
       <div className="flex-1 overflow-y-auto p-2">
         {filteredLessons.length === 0 ? (
-          <div className="flex flex-col items-center py-8 gap-2">
-            <p className="text-dark-500 text-xs">
-              {showBookmarks ? 'No saved lessons.' : 'No lessons match.'}
+          <div className="flex flex-col items-center py-8 gap-2 text-center">
+            <Lock size={18} className="text-dark-700"/>
+            <p className="text-dark-500 text-xs px-3">
+              {showBookmarks
+                ? 'No saved lessons.'
+                : hasBatch && hasDayNumbers
+                  ? `No lessons for Day ${currentDay}.`
+                  : 'No lessons match.'
+              }
             </p>
             {showBookmarks && (
               <button onClick={() => setShowBookmarks(false)} className="text-brand-400 text-xs hover:text-brand-300">
@@ -161,63 +159,7 @@ export default function LessonPlaylist({
               </button>
             )}
           </div>
-        ) : hasDayNumbers && dayGroups ? (
-          // ── Day-grouped view ──
-          <div className="space-y-1">
-            {groupKeys.map(dayNum => {
-              const dayLessons  = dayGroups[dayNum]
-              const isToday     = dayNum === currentDay
-              const isDayLocked = hasBatch && dayNum > currentDay
-              const isDayDone   = dayLessons.every(l => completedLessons.includes(l.id))
-              return (
-                <div key={dayNum}>
-                  {/* Day header */}
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg mb-0.5
-                                    ${isToday ? 'bg-brand-600/15' : ''}`}>
-                    <span className={`text-[10px] font-display font-700 uppercase tracking-wider
-                                      ${isToday    ? 'text-brand-400'
-                                      : isDayLocked ? 'text-dark-700'
-                                      : isDayDone  ? 'text-emerald-500'
-                                      : 'text-dark-500'}`}>
-                      {dayNum === 0 ? 'No day set' : `Day ${dayNum}`}
-                    </span>
-                    {dayLessons.length > 1 && (
-                      <span className="text-[10px] text-dark-600">
-                        {dayLessons.length} videos
-                      </span>
-                    )}
-                    {isToday && (
-                      <span className="ml-auto text-[10px] bg-brand-600/20 text-brand-400
-                                       px-1.5 py-0.5 rounded-full font-600">
-                        Today
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Videos for this day */}
-                  {dayLessons.map(lesson => {
-                    const realIndex = lessons.indexOf(lesson)
-                    const locked    = isLocked(realIndex)
-                    return (
-                      <LessonItem
-                        key={lesson.id}
-                        lesson={lesson}
-                        index={realIndex}
-                        isActive={activeLesson?.id === lesson.id}
-                        isCompleted={completedLessons.includes(lesson.id)}
-                        isBookmarked={bookmarkedLessons.includes(lesson.id)}
-                        isLocked={locked}
-                        dayNumber={lesson.dayNumber}
-                        onClick={() => locked ? onLockedClick?.() : onSelect(lesson)}
-                      />
-                    )
-                  })}
-                </div>
-              )
-            })}
-          </div>
         ) : (
-          // ── Sequential view (no dayNumbers) ──
           <div className="space-y-1">
             {filteredLessons.map(lesson => {
               const realIndex = lessons.indexOf(lesson)
@@ -231,10 +173,19 @@ export default function LessonPlaylist({
                   isCompleted={completedLessons.includes(lesson.id)}
                   isBookmarked={bookmarkedLessons.includes(lesson.id)}
                   isLocked={locked}
+                  dayNumber={lesson.dayNumber}
                   onClick={() => locked ? onLockedClick?.() : onSelect(lesson)}
                 />
               )
             })}
+          </div>
+        )}
+
+        {/* Next day teaser */}
+        {hasBatch && hasDayNumbers && !query && !showBookmarks && currentDay < totalDays && (
+          <div className="mt-4 px-3 py-3 rounded-lg border border-dark-800 bg-dark-900/50 text-center">
+            <Lock size={12} className="text-dark-700 mx-auto mb-1"/>
+            <p className="text-[10px] text-dark-600">Day {currentDay + 1}+ unlocks tomorrow</p>
           </div>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, BookOpen,
@@ -46,6 +46,11 @@ export default function CoursePage() {
   const [showQuiz, setShowQuiz] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+
+  // ── Watch timer — must watch MIN_WATCH_SECONDS before Mark Complete unlocks ──
+  const MIN_WATCH_SECONDS = 1800 // 3 minutes
+  const [watchedSeconds, setWatchedSeconds] = useState(0)
+  const timerRef = useRef(null)
 
   const { lessons, loading: lessonsLoading } = useLessons(courseId)
 
@@ -129,16 +134,24 @@ export default function CoursePage() {
     if (activeLesson?.id) saveLastLesson(activeLesson.id)
   }, [activeLesson?.id])
 
-  useEffect(() => { setShowQuiz(false) }, [activeLesson?.id])
+  // Reset and start timer when lesson changes
+  useEffect(() => {
+    setShowQuiz(false)
+    setWatchedSeconds(0)
+    clearInterval(timerRef.current)
+    if (activeLesson?.id) {
+      // Start counting — simulates watch time (increments every second)
+      timerRef.current = setInterval(() => {
+        setWatchedSeconds(s => s + 1)
+      }, 1000)
+    }
+    return () => clearInterval(timerRef.current)
+  }, [activeLesson?.id])
 
   useEffect(() => {
     if (!justCompleted) return
     const lesson = lessons.find(l => l.id === justCompleted)
-    const currentIdx = lessons.findIndex(l => l.id === justCompleted)
-    const nextLesson = lessons[currentIdx + 1]
-    const msg = nextLesson
-      ? `"${lesson?.title}" complete! "${nextLesson.title}" unlocked.`
-      : `"${lesson?.title}" complete! Course finished! 🎓`
+    const msg = `"${lesson?.title}" marked complete! 🎉`
     setToast({ show: true, message: msg, type: 'success' })
   }, [justCompleted])
 
@@ -177,22 +190,27 @@ export default function CoursePage() {
 
   const handleMarkComplete = async () => {
     if (!activeLesson || lessonDone || marking) return
+    // Timer guard — must have watched minimum time
+    if (watchedSeconds < MIN_WATCH_SECONDS) {
+      const remaining = MIN_WATCH_SECONDS - watchedSeconds
+      const mins = Math.ceil(remaining / 60)
+      setToast({
+        show: true,
+        message: `Pehle video dekho! ${mins} min${mins > 1 ? 's' : ''} aur baaki hain.`,
+        type: 'warning',
+      })
+      return
+    }
     setMarking(true)
     await markComplete(activeLesson.id)
     setMarking(false)
-    const nextIdx = currentIndex + 1
-    if (nextIdx < lessons.length && !isLessonLocked(nextIdx)) {
-      setTimeout(() => setActiveLesson(lessons[nextIdx]), 800)
-    }
+    // NO auto-advance to next lesson — user must manually pick next
   }
 
   const handleQuizPass = async () => {
     if (!activeLesson || lessonDone) return
     await markComplete(activeLesson.id)
-    const nextIdx = currentIndex + 1
-    if (nextIdx < lessons.length) {
-      setTimeout(() => setActiveLesson(lessons[nextIdx]), 1200)
-    }
+    // NO auto-advance — stay on same lesson, just show completed state
   }
 
   const handleSelectLesson = useCallback((lesson) => {
@@ -514,26 +532,48 @@ export default function CoursePage() {
                           {quizResult ? 'Retake Quiz' : 'Take Quiz'}
                         </button>
                       ) : (
-                        <button
-                          onClick={handleMarkComplete}
-                          disabled={marking}
-                          className={`inline-flex items-center gap-2.5 px-5 py-2.5 rounded-lg
-                                      text-sm font-display font-600 transition-all duration-200
-                                      ${marking
-                              ? 'bg-brand-600/20 text-brand-400 cursor-not-allowed'
-                              : 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/25 hover:scale-[1.02]'
-                            }`}
-                        >
-                          {marking ? (
-                            <>
-                              <span className="w-4 h-4 border-2 border-brand-300/40 border-t-brand-300
-                                               rounded-full animate-spin" />
-                              Saving...
-                            </>
-                          ) : (
-                            <><CheckCircle size={16} /> Mark Complete</>
+                        // ── Timer-gated Mark Complete ──────────────────────
+                        <div className="flex flex-col gap-1.5">
+                          {watchedSeconds < MIN_WATCH_SECONDS && (
+                            <div className="flex items-center gap-2">
+                              {/* Timer progress bar */}
+                              <div className="w-28 h-1.5 bg-dark-800 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-amber-500 rounded-full transition-all duration-1000"
+                                  style={{ width: `${Math.min(100, (watchedSeconds / MIN_WATCH_SECONDS) * 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-dark-500 font-mono">
+                                {Math.ceil((MIN_WATCH_SECONDS - watchedSeconds) / 60)}m left
+                              </span>
+                            </div>
                           )}
-                        </button>
+                          <button
+                            onClick={handleMarkComplete}
+                            disabled={marking || watchedSeconds < MIN_WATCH_SECONDS}
+                            title={watchedSeconds < MIN_WATCH_SECONDS ? 'Pehle video dekho!' : 'Mark lesson complete'}
+                            className={`inline-flex items-center gap-2.5 px-5 py-2.5 rounded-lg
+                                        text-sm font-display font-600 transition-all duration-200
+                                        ${marking
+                                ? 'bg-brand-600/20 text-brand-400 cursor-not-allowed'
+                                : watchedSeconds < MIN_WATCH_SECONDS
+                                  ? 'bg-dark-800 text-dark-600 border border-dark-700 cursor-not-allowed'
+                                  : 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/25 hover:scale-[1.02]'
+                              }`}
+                          >
+                            {marking ? (
+                              <>
+                                <span className="w-4 h-4 border-2 border-brand-300/40 border-t-brand-300
+                                                 rounded-full animate-spin" />
+                                Saving...
+                              </>
+                            ) : watchedSeconds < MIN_WATCH_SECONDS ? (
+                              <><Lock size={14} /> Watch First</>
+                            ) : (
+                              <><CheckCircle size={16} /> Mark Complete</>
+                            )}
+                          </button>
+                        </div>
                       )}
                     </div>
 
