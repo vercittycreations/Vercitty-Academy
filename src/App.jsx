@@ -19,7 +19,8 @@ import StudentLoginHistory from './pages/admin/StudentLoginHistory'
 import ManageBatches       from './pages/admin/ManageBatches'
 import ManageAnnouncements from './pages/admin/ManageAnnouncements'
 import SubmissionsAdmin    from './pages/admin/SubmissionsAdmin'
-import ManageReadingPages  from './pages/admin/Managereadingpages'
+// FIXED THIS LINE BELOW: Changed 'Managereadingpages' to 'ManageReadingPages'
+import ManageReadingPages  from './pages/admin/ManageReadingPages' 
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
